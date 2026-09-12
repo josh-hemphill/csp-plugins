@@ -110,9 +110,12 @@ describe('cSPProcessor', () => {
 
 			// Hashes should be generated during processDOM, not analyzeDOM
 			expect(result.analysis.inlineScripts[0].hash).toBeDefined();
-			expect(result.analysis.inlineScripts[0].hash).toMatch(/^[A-Z0-9+/=]+$/i);
+			expect(result.analysis.inlineScripts[0].hash).toMatch(
+				/^sha(256|384|512)-[A-Za-z0-9+/=]+$/,
+			);
+			expect(result.analysis.inlineScripts[0].hash?.startsWith('sha256-sha256-')).toBe(false);
 			expect(result.analysis.inlineStyles[0].hash).toBeDefined();
-			expect(result.analysis.inlineStyles[0].hash).toMatch(/^[A-Z0-9+/=]+$/i);
+			expect(result.analysis.inlineStyles[0].hash).toMatch(/^sha(256|384|512)-[A-Za-z0-9+/=]+$/);
 		});
 
 		it('includes element references', async () => {
@@ -157,6 +160,35 @@ describe('cSPProcessor', () => {
 			expect(csp).toContain('script-src');
 			expect(csp).toContain('style-src');
 			expect(csp).toContain('sha256-');
+			expect(csp).not.toContain('sha256-sha256-');
+		});
+
+		it('starts script-src and style-src with self plus hashes', async () => {
+			const document = processor.parseHTML(basicHtml);
+			const result = await processor.processDOM(document);
+			const csp = result.headers['Content-Security-Policy'];
+
+			expect(csp).toMatch(/script-src[^;]*'self'/);
+			expect(csp).toMatch(/style-src[^;]*'self'/);
+			expect(csp).toMatch(/script-src[^;]*'sha256-/);
+			expect(csp).toMatch(/style-src[^;]*'sha256-/);
+		});
+
+		it('returns builder.getHeaders() when generateHeaders is true', async () => {
+			const document = processor.parseHTML(basicHtml);
+			const result = await processor.processDOM(document);
+
+			expect(result.headers).toEqual(result.builder.getHeaders());
+			expect(result.headers['Content-Security-Policy']?.length).toBeGreaterThan(0);
+		});
+
+		it('omits unsafe-inline and unsafe-eval in production', async () => {
+			const document = processor.parseHTML(basicHtml);
+			const result = await processor.processDOM(document);
+			const csp = result.headers['Content-Security-Policy'];
+
+			expect(csp).not.toContain("'unsafe-inline'");
+			expect(csp).not.toContain("'unsafe-eval'");
 		});
 
 		it('includes nonces in CSP directives', async () => {
@@ -332,6 +364,17 @@ describe('cSPProcessor', () => {
 			expect(csp).toContain("'unsafe-inline'");
 		});
 
+		it('omits unsafe-inline in development unless allowUnsafeInline is set', async () => {
+			const proc = new CSPProcessor({
+				developmentMode: true,
+			});
+			const result = await proc.processHTML(basicHtml);
+
+			const csp = result.headers['Content-Security-Policy'];
+			expect(csp).not.toContain("'unsafe-inline'");
+			expect(csp).not.toContain("'unsafe-eval'");
+		});
+
 		it('allows unsafe-eval in development', async () => {
 			const proc = new CSPProcessor({
 				developmentMode: true,
@@ -369,12 +412,15 @@ describe('cSPProcessor', () => {
 			expect(result.nonces.style).toBeUndefined();
 		});
 
-		it('disables hash generation when disabled', async () => {
-			const proc = new CSPProcessor({ enableHashes: false });
+		it('keeps self when hashes are disabled', async () => {
+			const proc = new CSPProcessor({ enableHashes: false, enableNonces: false });
 			const result = await proc.processHTML(basicHtml);
 
 			const csp = result.headers['Content-Security-Policy'];
+			expect(csp).toMatch(/script-src 'self'/);
+			expect(csp).toMatch(/style-src 'self'/);
 			expect(csp).not.toContain('sha256-');
+			expect(csp).not.toContain("'unsafe-inline'");
 		});
 
 		it('uses custom hash algorithm', async () => {

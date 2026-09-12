@@ -50,6 +50,7 @@ csp-cli --manifests-dir .csp-manifest dist/
 | `--local-script-integrity` | Enable integrity attributes for local scripts             | `false`            |
 | `--auto-manifest`          | Automatically generate manifest if none found             | `false`            |
 | `--csp-policy-file <file>` | JSON file containing CSP policies for auto-manifest       | None               |
+| `--emit <adapters>`        | Write host files from the header map                      | None               |
 | `--log-level <level>`      | Set log level: trace, debug, info, warn, error, or silent | `info`             |
 | `--cache-stats`            | Show cache statistics                                     | `false`            |
 | `--clear-cache`            | Clear the resource cache                                  | `false`            |
@@ -79,6 +80,9 @@ csp-cli --auto-manifest dist/
 
 # Auto-generate with custom CSP policies
 csp-cli --auto-manifest --csp-policy-file policies.json dist/
+
+# Write Netlify and Vercel header files
+csp-cli --emit netlify,vercel dist/
 ```
 
 #### Advanced Features
@@ -129,14 +133,16 @@ When using `--auto-manifest`, you can provide a JSON file with CSP policies:
 ```json
 {
  "CSP": {
-  "script-src": ["self", "unsafe-inline"],
-  "style-src": ["self", "unsafe-inline"],
+  "script-src": ["self"],
+  "style-src": ["self"],
   "img-src": ["self", "data:", "https:"],
   "font-src": ["self", "data:", "https:"],
   "connect-src": ["self"]
  }
 }
 ```
+
+`'unsafe-inline'` / `'unsafe-eval'` are not part of the auto-manifest default. Add them only when a policy file opts in (for example a development policy).
 
 ### Directory Structure
 
@@ -220,8 +226,8 @@ const reportPath = await utils.generateReport('dist/');
  "cspProcessorOptions": {
   "baseDirectives": {
    "CSP": {
-    "script-src": ["self", "unsafe-inline"],
-    "style-src": ["self", "unsafe-inline"]
+    "script-src": ["self"],
+    "style-src": ["self"]
    }
   }
  }

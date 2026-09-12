@@ -1,0 +1,15 @@
+{
+	"$schema": "https://typedoc.org/schema.json",
+	"name": "@csp-plugins/typed-directives",
+	"entryPoints": [
+		"packages/typed-directives/src/index.ts",
+		"packages/typed-directives/src/csp.types.ts"
+	],
+	"tsconfig": "tsconfig.json",
+	"out": "api-docs",
+	"readme": "packages/typed-directives/README.md",
+	"excludePrivate": true,
+	"excludeInternal": true,
+	"includeVersion": true,
+	"treatWarningsAsErrors": false
+}

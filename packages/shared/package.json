@@ -32,14 +32,17 @@
 	},
 	"scripts": {
 		"build": "obuild",
-		"dev": "obuild --watch"
+		"dev": "obuild --watch",
+		"test": "vitest run",
+		"test::unit": "vitest run"
 	},
 	"dependencies": {
 		"@csp-plugins/core": "workspace:*"
 	},
 	"devDependencies": {
 		"obuild": "catalog:build",
-		"typescript": "catalog:build"
+		"typescript": "catalog:build",
+		"vitest": "catalog:test"
 	},
 	"engines": {
 		"node": ">=22.13.0"

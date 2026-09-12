@@ -168,7 +168,8 @@ npx csp-process dist/ --output-dir dist-csp/
 | Option                | Type                           | Default                   | Description                                                              |
 | --------------------- | ------------------------------ | ------------------------- | ------------------------------------------------------------------------ |
 | `trackAssets`         | `boolean`                      | `true`                    | Whether to enable asset tracking                                         |
-| `generateCsp`         | `boolean`                      | `false`                   | Whether to generate CSP directives during build                          |
+| `generateCsp`         | `boolean`                      | `true`                    | Inject a CSP meta tag into built HTML                                    |
+| `emitHeadersFile`     | `boolean \| string`            | `'csp-headers.json'`      | Write `CspDirectiveHeaders` JSON beside `outDir`; `false` skips the file |
 | `cspProcessorOptions` | `Partial<CSPProcessorOptions>` | `{}`                      | CSP processor options                                                    |
 | `manifestDir`         | `string`                       | `outputDir/.csp-manifest` | Output directory for manifest files (defaults to build output directory) |
 | `devServer`           | `boolean`                      | `false`                   | Whether to enable dev server integration                                 |

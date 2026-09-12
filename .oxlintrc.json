@@ -3,6 +3,7 @@
 	"ignorePatterns": [
 		"**/dist/**",
 		"**/coverage/**",
+		"**/api-docs/**",
 		"packages/cli/**",
 		"packages/e2e-tests/**",
 		"packages/unplugin/**"

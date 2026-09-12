@@ -24,7 +24,7 @@
 		"skipDefaultLibCheck": true,
 		"skipLibCheck": true
 	},
-	"include": ["packages"],
+	"include": ["packages", "scripts", "monup.config.ts"],
 	"exclude": [
 		"node_modules",
 		"**/**/*.stories.tsx",
@@ -34,7 +34,6 @@
 		"packages/_docs",
 		"packages/cli",
 		"packages/e2e-tests",
-		"packages/unplugin",
-		"scripts"
+		"packages/unplugin"
 	]
 }

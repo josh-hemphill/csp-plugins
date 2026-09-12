@@ -11,6 +11,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  code-quality: write
+
 jobs:
   test:
     name: Node ${{ matrix.node }}
@@ -35,4 +39,31 @@ jobs:
       - run: pnpm lint:markdown
       - run: pnpm spell
       - run: pnpm fmt:check
-      - run: pnpm test
+      - name: Test
+        run: pnpm ${{ matrix.node == '24' && 'test:coverage' || 'test' }}
+      - name: Coverage summary
+        if: matrix.node == '24'
+        run: pnpm coverage:summary
+      - name: Generate API docs
+        if: matrix.node == '24'
+        run: pnpm docs:api
+      - name: Upload coverage artifact
+        if: matrix.node == '24' && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/cobertura-coverage.xml
+            coverage/coverage-summary.json
+            coverage/index.html
+      - name: Upload coverage to GitHub Code Quality
+        if: >-
+          matrix.node == '24' &&
+          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+        uses: actions/upload-code-coverage@v1
+        with:
+          file: coverage/cobertura-coverage.xml
+          language: TypeScript
+          label: code-coverage/vitest
+          fail-on-error: false

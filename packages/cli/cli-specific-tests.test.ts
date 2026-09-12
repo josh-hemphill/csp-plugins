@@ -121,8 +121,6 @@ describe('cLI Specific Functionality Tests', () => {
 
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
-
-			// Check nonces - the format is nonce-... (no quotes)
 			expect(htmlContent).toContain('nonce-');
 		});
 	});
@@ -153,9 +151,8 @@ describe('cLI Specific Functionality Tests', () => {
 
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
-
-			// Check nonces - the format is nonce-... (no quotes)
 			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain("'unsafe-inline'");
 		});
 	});
 

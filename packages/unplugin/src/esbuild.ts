@@ -27,7 +27,7 @@ export default function cspEsbuildPlugin(options: CspPluginOptions = {}): Plugin
 			});
 
 			// Track output files
-			build.onEnd((result) => {
+			build.onEnd(async (result) => {
 				if (result.outputFiles) {
 					const outputDir = (build.initialOptions.outdir ?? '') || 'dist';
 
@@ -47,9 +47,8 @@ export default function cspEsbuildPlugin(options: CspPluginOptions = {}): Plugin
 						});
 					}
 
-					// Write manifest
-					const manifest = tracker.generateManifest(outputDir);
-					manifestWriter.writeManifest(manifest).catch(console.error);
+					const manifest = await tracker.generateManifest(outputDir);
+					await manifestWriter.writeManifest(manifest);
 				}
 			});
 
