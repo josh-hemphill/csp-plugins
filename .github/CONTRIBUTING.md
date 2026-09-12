@@ -23,8 +23,8 @@ pnpm docs:api
 | Script | What it does |
 | --- | --- |
 | `pnpm build` | typed-directives, core, shared, basic-fscache |
-| `pnpm build:all` | those four plus cli and unplugin (CI uses this) |
-| `pnpm test` | Vitest unit tests for typed-directives, core, shared, basic-fscache, unplugin, and `scripts/` |
+| `pnpm build:all` | those four plus adapters, cli, and unplugin (CI uses this) |
+| `pnpm test` | Vitest unit tests for typed-directives, core, shared, basic-fscache, adapters, unplugin, and `scripts/` |
 | `pnpm test:coverage` | same tests with V8 coverage (Cobertura + HTML + JSON) |
 | `pnpm docs:api` | TypeDoc HTML for `@csp-plugins/typed-directives` |
 | `pnpm contributors` | refresh `CONTRIBUTORS.md` and the README block from the GitHub API |
@@ -41,7 +41,7 @@ Add dependencies with a named catalog, not a default `catalog:` entry:
 pnpm add <pkg> --save-catalog-name <build|dev|logging|parsing|plugin-systems|test|types>
 ```
 
-Keep the package DAG: **typed-directives → core → (shared, basic-fscache) → (cli \| unplugin) → e2e**. Do not merge packages or add adapters until Area 5 of the product plan.
+Keep the package DAG: **typed-directives → core → (shared, basic-fscache) → (cli \| unplugin) → e2e**, and **typed-directives → adapters → cli**.
 
 ## Bugs and enhancements
 

@@ -5,13 +5,14 @@ import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { extname, join, resolve } from 'node:path';
 import process from 'node:process';
 
+import { emitAdapter, getAdapter, parseAdapterIds, type AdapterId } from '@csp-plugins/adapters';
 import { SimpleFilesystemCache } from '@csp-plugins/basic-fscache';
 import type { CSPProcessorOptions } from '@csp-plugins/core';
 import { CSPProcessor, deepMerge, generateHash } from '@csp-plugins/core';
 import { CommonAssetTracker } from '@csp-plugins/shared/asset-tracker';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
 import type { AssetManifest } from '@csp-plugins/shared/types';
-import type { CspDirectives } from '@csp-plugins/typed-directives';
+import type { CspDirectiveHeaders, CspDirectives } from '@csp-plugins/typed-directives';
 import log from 'loglevel';
 
 import { firstLengthyString } from './cli-utils.ts';
@@ -47,6 +48,8 @@ interface CliOptions {
 	localScriptIntegrity?: boolean;
 	/** Automatically generate manifest if none found */
 	autoManifest?: boolean;
+	/** Header adapters to emit (`netlify,vercel`, …) */
+	emit?: AdapterId[];
 	/** Path to JSON file containing CSP policies */
 	cspPolicyFile?: string;
 	/** Log level: trace, debug, info, warn, error, or silent */
@@ -643,7 +646,7 @@ export class CliProcessor {
 		}
 
 		// Generate CSP headers first if requested
-		if (this.options.generateHeaders === true) {
+		if (this.options.generateHeaders === true || (this.options.emit ?? []).length > 0) {
 			await this.generateCspHeaders();
 		}
 
@@ -794,20 +797,50 @@ export class CliProcessor {
 		}
 
 		try {
-			const headersOutput = this.options.headersOutput;
-			if (headersOutput === undefined || headersOutput === null || headersOutput === '') {
-				log.warn('No headers output path specified');
+			const headers = this.collectedCspBuilder?.getHeaders();
+			if (headers === undefined) {
+				log.warn('No CSP headers collected, skipping headers generation');
 				return;
 			}
 
-			await writeFile(
-				headersOutput,
-				JSON.stringify(this.collectedCspBuilder?.getHeaders(), null, 2),
-				'utf-8',
-			);
-			log.info(`Generated CSP headers: ${headersOutput}`);
+			const headersOutput = this.options.headersOutput;
+			if (
+				this.options.generateHeaders !== false &&
+				headersOutput !== undefined &&
+				headersOutput !== null &&
+				headersOutput !== ''
+			) {
+				await writeFile(headersOutput, emitAdapter('json', headers), 'utf8');
+				log.info(`Generated CSP headers: ${headersOutput}`);
+			}
+
+			await this.emitHostAdapters(headers);
 		} catch (error) {
 			log.warn(`Error generating CSP headers: ${String(error)}`);
+		}
+	}
+
+	/**
+	 * Write host-specific header files, merging CSP keys into existing files.
+	 */
+	private async emitHostAdapters(headers: CspDirectiveHeaders): Promise<void> {
+		const ids = this.options.emit ?? [];
+		if (ids.length === 0) {
+			return;
+		}
+
+		const destDir = this.options.outputDir ?? this.options.inputDir;
+		for (const id of ids) {
+			if (id === 'json') {
+				continue;
+			}
+			const adapter = getAdapter(id);
+			const dest = join(destDir, adapter.fileName);
+			const existing = existsSync(dest) ? await readFile(dest, 'utf8') : '';
+			const body =
+				existing.length > 0 ? adapter.merge(existing, headers) : emitAdapter(id, headers);
+			await writeFile(dest, body, 'utf8');
+			log.info(`Emitted ${id} headers: ${dest}`);
 		}
 	}
 
@@ -854,6 +887,7 @@ Options:
   --local-script-integrity  Enable integrity attributes for local scripts (advanced security)
   --auto-manifest           Automatically generate manifest if none found
   --csp-policy-file <file>  JSON file containing CSP policies for auto-manifest
+  --emit <adapters>         Write host files: json,netlify,cloudflare-pages,vercel,firebase,nginx,apache,caddy,express
   --log-level <level>       Set log level: trace, debug, info, warn, error, or silent (default: info)
   --cache-stats             Show cache statistics
   --clear-cache             Clear the resource cache
@@ -866,6 +900,7 @@ Examples:
   csp-process --manifests-dir .csp-manifest dist/
   csp-process --auto-manifest dist/
   csp-process --auto-manifest --csp-policy-file policies.json dist/
+  csp-process --emit netlify,vercel dist/
   csp-process --log-level silent dist/
   csp-process --cache-stats dist/
   csp-process --clear-cache dist/
@@ -921,6 +956,12 @@ Examples:
 					i++;
 				}
 				break;
+			case '--emit':
+				if (nextArg) {
+					options.emit = parseAdapterIds(nextArg);
+					i++;
+				}
+				break;
 			case '--log-level':
 				if (nextArg) {
 					options.logLevel = nextArg;
@@ -944,6 +985,7 @@ Examples:
 					args[i - 1] === '--manifests-dir' ||
 					args[i - 1] === '--headers-output' ||
 					args[i - 1] === '--csp-policy-file' ||
+					args[i - 1] === '--emit' ||
 					args[i - 1] === '--log-level'))
 		) {
 			continue;

@@ -30,7 +30,7 @@
 	"type": "module",
 	"scripts": {
 		"build": "pnpm --filter @csp-plugins/typed-directives --filter @csp-plugins/core --filter @csp-plugins/shared --filter @csp-plugins/basic-fscache run build",
-		"build:all": "pnpm --filter @csp-plugins/typed-directives --filter @csp-plugins/core --filter @csp-plugins/shared --filter @csp-plugins/basic-fscache --filter @csp-plugins/cli --filter @csp-plugins/unplugin run build",
+		"build:all": "pnpm --filter @csp-plugins/typed-directives --filter @csp-plugins/core --filter @csp-plugins/shared --filter @csp-plugins/basic-fscache --filter @csp-plugins/adapters --filter @csp-plugins/cli --filter @csp-plugins/unplugin run build",
 		"test": "vitest run -c vitest.config.ts",
 		"test:coverage": "vitest run -c vitest.config.ts --coverage",
 		"test:typed-directives": "pnpm --filter @csp-plugins/typed-directives run test::unit",

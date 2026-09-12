@@ -26,9 +26,9 @@ Pin files: `package.json#packageManager`, `package.json#devEngines`, `.node-vers
 
 Keep this DAG: **typed-directives → core → (shared, basic-fscache) → (cli \| unplugin) → e2e**.
 
-Do **not** merge `shared` into `core`, merge `cli` into `unplugin`, add `@csp-plugins/headers`, or start `packages/adapters/` until Area 5. `CspDirectiveHeaders` stays in typed-directives. `CspPluginOptions` currently lives in `packages/shared/src/types.ts` — Area 3 should edit that file or move the type then, not fork a second options interface. Area 5 emitters belong in `packages/adapters/`, not a package named `headers`.
+Do **not** merge `shared` into `core`, merge `cli` into `unplugin`, or add `@csp-plugins/headers`. Area 5 emitters live in `packages/adapters/`. `CspDirectiveHeaders` stays in typed-directives.
 
-`pnpm build` is the four-package baseline. `pnpm build:all` also compiles cli + unplugin so their export maps fail in CI; their product tests stay out of `pnpm test`. `packages/e2e-tests/test-app` is a workspace member (`@csp-plugins/e2e-test-app`).
+`pnpm build` is the four-package baseline. `pnpm build:all` also compiles adapters, cli, and unplugin so their export maps fail in CI. CLI product tests stay out of `pnpm test`; adapters and the Vite plugin are in `pnpm test`. `packages/e2e-tests/test-app` is a workspace member (`@csp-plugins/e2e-test-app`).
 
 ## Restored orchestration (done before product Areas 1–5)
 
@@ -50,7 +50,7 @@ A developer can add one plugin (or one CLI invocation) and get a **strict** Cont
   - `@csp-plugins/typed-directives` already maps typed directives to `CspDirectiveHeaders`.
   - `@csp-plugins/core` already parses HTML, hashes/nonces, injects `<meta>`, and can hash externals.
   - CLI already writes `csp-headers.json`. Bundler plugins only write `.csp-manifest`.
-  - Vite injects a CSP meta tag and writes `csp-headers.json`. Manifest hashes are `sha256-<base64>`. CLI auto-manifest uses `'self'` (no `'unsafe-inline'`) until a policy file opts in.
+  - Vite injects a CSP meta tag and writes `csp-headers.json`. Manifest hashes are `sha256-<base64>`. CLI auto-manifest uses `'self'` (no `'unsafe-inline'`) until a policy file opts in. `--emit netlify,vercel` writes host files from the same header map.
 
 ## Stack graph
 
@@ -164,6 +164,7 @@ interface CspPluginOptions {
 
 ### Area 5: Hosting and server adapters
 
+  - Status: **done on this line** — `@csp-plugins/adapters` emits json/netlify/cloudflare-pages/vercel/firebase/nginx/apache/caddy/express. Empty values are omitted. Merge keeps unrelated keys. CLI `--emit netlify,vercel` writes the files.
   - Goal: One declarative `CspDirectiveHeaders` object can be emitted as native config for common hosts. Least developer intervention: `--emit netlify,vercel` or auto-detect from repo files.
   - Depends on: Area 1 (header map), Area 3/4 (something actually produces the map)
   - Out of scope: every host on earth; start with the set below. No new CSP semantics.

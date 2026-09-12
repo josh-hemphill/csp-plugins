@@ -24,7 +24,7 @@ pnpm test:coverage
 pnpm docs:api
 ```
 
-`pnpm build` covers `@csp-plugins/typed-directives`, `@csp-plugins/core`, `@csp-plugins/shared`, and `@csp-plugins/basic-fscache`. `pnpm build:all` also builds `@csp-plugins/cli` and `@csp-plugins/unplugin` (CI uses this). `pnpm test` runs unit tests for typed-directives, core, shared, basic-fscache, unplugin, and the workspace scripts. `pnpm test:coverage` adds V8 coverage (Cobertura + HTML + JSON) for typed-directives, core, shared, and basic-fscache; CI uploads that report to GitHub Code Quality on Node 24. `pnpm docs:api` generates TypeDoc HTML for `@csp-plugins/typed-directives` (deployed from `main` to GitHub Pages).
+`pnpm build` covers `@csp-plugins/typed-directives`, `@csp-plugins/core`, `@csp-plugins/shared`, and `@csp-plugins/basic-fscache`. `pnpm build:all` also builds `@csp-plugins/adapters`, `@csp-plugins/cli`, and `@csp-plugins/unplugin` (CI uses this). `pnpm test` runs unit tests for typed-directives, core, shared, basic-fscache, adapters, unplugin, and the workspace scripts. `pnpm test:coverage` adds V8 coverage (Cobertura + HTML + JSON) for typed-directives, core, shared, basic-fscache, and adapters; CI uploads that report to GitHub Code Quality on Node 24. `pnpm docs:api` generates TypeDoc HTML for `@csp-plugins/typed-directives` (deployed from `main` to GitHub Pages).
 
 ## Packages
 
@@ -34,6 +34,7 @@ pnpm docs:api
 | `@csp-plugins/core` | HTML analysis, hashes/nonces, meta-tag injection |
 | `@csp-plugins/shared` | Asset tracking and `.csp-manifest` I/O |
 | `@csp-plugins/basic-fscache` | Optional filesystem cache for fetched externals |
+| `@csp-plugins/adapters` | Emit `CspDirectiveHeaders` as Netlify/Vercel/nginx/… config (`build:all`; unit-tested) |
 | `@csp-plugins/cli` | Post-build HTML + `csp-headers.json` (`build:all`, not default `test`) |
 | `@csp-plugins/unplugin` | Vite / Webpack / Rollup / esbuild / Nuxt plugins (`build:all`; Vite HTML + headers covered by `pnpm test`) |
 

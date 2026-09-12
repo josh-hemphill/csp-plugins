@@ -18,6 +18,7 @@
 		"test:watch": "vitest --watch"
 	},
 	"dependencies": {
+		"@csp-plugins/adapters": "workspace:*",
 		"@csp-plugins/basic-fscache": "workspace:*",
 		"@csp-plugins/core": "workspace:*",
 		"@csp-plugins/shared": "workspace:*",

@@ -7,6 +7,7 @@ export default defineConfig({
 			'packages/core',
 			'packages/shared',
 			'packages/basic-fscache',
+			'packages/adapters',
 			'packages/unplugin',
 			{
 				test: {
@@ -25,6 +26,7 @@ export default defineConfig({
 				'packages/core/lib/**/*.ts',
 				'packages/shared/src/**/*.ts',
 				'packages/basic-fscache/lib/**/*.ts',
+				'packages/adapters/src/**/*.ts',
 			],
 			exclude: ['**/*.test.ts', '**/tests/**', '**/test/**', '**/dist/**', '**/node_modules/**'],
 		},
