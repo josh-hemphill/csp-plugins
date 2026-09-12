@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SimpleFilesystemCache } from '../lib/index.js';
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import os from 'node:os';
+import path from 'node:path';
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+
+import { SimpleFilesystemCache } from '../lib/index.js';
 
 describe('SimpleFilesystemCache', () => {
 	let cache: SimpleFilesystemCache;

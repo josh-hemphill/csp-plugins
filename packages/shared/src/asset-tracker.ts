@@ -1,5 +1,6 @@
-import type { AssetManifest, CspPluginOptions, TrackedAsset } from './types.ts';
 import { generateHash } from '@csp-plugins/core';
+
+import type { AssetManifest, CspPluginOptions, TrackedAsset } from './types.ts';
 
 /**
  * Common asset tracker implementation used by all build plugins
@@ -28,12 +29,10 @@ export class CommonAssetTracker {
 	 * Track a new asset
 	 */
 	trackAsset(asset: Omit<TrackedAsset, 'timestamp' | 'buildTool'>): void {
-		if (!this.options.trackAssets)
-			return;
+		if (!this.options.trackAssets) return;
 
 		// Check include/exclude patterns
-		if (!this.shouldTrackAsset(asset.path))
-			return;
+		if (!this.shouldTrackAsset(asset.path)) return;
 
 		const trackedAsset: TrackedAsset = {
 			...asset,
@@ -43,14 +42,16 @@ export class CommonAssetTracker {
 
 		// Generate hash if not provided
 		if (trackedAsset.source !== undefined && trackedAsset.hash === undefined) {
-			generateHash(trackedAsset.source, 'sha256').then((hash: string) => {
-				if (trackedAsset.hash === undefined) {
-					trackedAsset.hash = hash;
-				}
-			}).catch((error) => {
-				// Hash generation failed, continue without it
-				console.error(error);
-			});
+			generateHash(trackedAsset.source, 'sha256')
+				.then((hash: string) => {
+					if (trackedAsset.hash === undefined) {
+						trackedAsset.hash = hash;
+					}
+				})
+				.catch((error) => {
+					// Hash generation failed, continue without it
+					console.error(error);
+				});
 		}
 
 		this.assets.push(trackedAsset);
@@ -90,12 +91,9 @@ export class CommonAssetTracker {
 		// Check exclude patterns first
 		for (const pattern of this.options.excludePatterns) {
 			if (typeof pattern === 'string') {
-				if (path.includes(pattern))
-					return false;
-			}
-			else {
-				if (pattern.test(path))
-					return false;
+				if (path.includes(pattern)) return false;
+			} else {
+				if (pattern.test(path)) return false;
 			}
 		}
 
@@ -103,12 +101,9 @@ export class CommonAssetTracker {
 		if (this.options.includePatterns.length > 0) {
 			for (const pattern of this.options.includePatterns) {
 				if (typeof pattern === 'string') {
-					if (path.includes(pattern))
-						return true;
-				}
-				else {
-					if (pattern.test(path))
-						return true;
+					if (path.includes(pattern)) return true;
+				} else {
+					if (pattern.test(path)) return true;
 				}
 			}
 			return false; // No patterns matched

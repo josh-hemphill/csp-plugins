@@ -1,5 +1,6 @@
-import type { FilesystemCache, SourceType } from '@csp-plugins/core';
 import fs from 'node:fs/promises';
+
+import type { FilesystemCache, SourceType } from '@csp-plugins/core';
 import { generateHash } from '@csp-plugins/core';
 
 /**
@@ -19,8 +20,7 @@ export class SimpleFilesystemCache implements FilesystemCache {
 	private async init(): Promise<void> {
 		try {
 			await fs.mkdir(this.cacheDir, { recursive: true });
-		}
-		catch (error) {
+		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			console.warn(`Failed to create cache directory: ${message}`);
 		}
@@ -31,37 +31,52 @@ export class SimpleFilesystemCache implements FilesystemCache {
 	 */
 	private async getCacheFilePath(key: string): Promise<string> {
 		// Create a safe filename from the key
-		// eslint-disable-next-line ts/no-unsafe-assignment, ts/no-unsafe-call
 		const keyHash = await generateHash(key, 'sha256');
-		const safeKey = String(keyHash).slice(-9).replace(/[^a-z0-9]/gi, '_');
+		const safeKey = String(keyHash)
+			.slice(-9)
+			.replace(/[^a-z0-9]/gi, '_');
 
-		// eslint-disable-next-line ts/no-unsafe-assignment, ts/no-unsafe-call
 		const contentHash = await generateHash(key, 'sha256');
 		// Sanitize hash for filename safety (replace invalid characters)
-		const safeHash = String(contentHash).slice(-9).replace(/[^a-z0-9]/gi, '_');
+		const safeHash = String(contentHash)
+			.slice(-9)
+			.replace(/[^a-z0-9]/gi, '_');
 		return `${this.cacheDir}/${safeKey}_${safeHash}.json`;
 	}
 
 	/**
 	 * Type guard to validate cache data structure
 	 */
-	private isValidCacheData(data: unknown): data is { content: string; hash: string; timestamp: number; sourceType: SourceType; key: string } {
+	private isValidCacheData(data: unknown): data is {
+		content: string;
+		hash: string;
+		timestamp: number;
+		sourceType: SourceType;
+		key: string;
+	} {
 		if (data === null || typeof data !== 'object') {
 			return false;
 		}
 
 		const obj = data as Record<string, unknown>;
-		return typeof obj.content === 'string'
-			&& typeof obj.hash === 'string'
-			&& typeof obj.timestamp === 'number'
-			&& typeof obj.sourceType === 'string'
-			&& typeof obj.key === 'string';
+		return (
+			typeof obj.content === 'string' &&
+			typeof obj.hash === 'string' &&
+			typeof obj.timestamp === 'number' &&
+			typeof obj.sourceType === 'string' &&
+			typeof obj.key === 'string'
+		);
 	}
 
 	/**
 	 * Read cached resource from filesystem
 	 */
-	async read(key: string): Promise<{ content: string; hash: string; timestamp: number; sourceType: SourceType } | null> {
+	async read(key: string): Promise<{
+		content: string;
+		hash: string;
+		timestamp: number;
+		sourceType: SourceType;
+	} | null> {
 		try {
 			await this.init();
 
@@ -77,8 +92,7 @@ export class SimpleFilesystemCache implements FilesystemCache {
 			}
 
 			return null;
-		}
-		catch {
+		} catch {
 			return null;
 		}
 	}
@@ -86,7 +100,10 @@ export class SimpleFilesystemCache implements FilesystemCache {
 	/**
 	 * Write resource to filesystem cache
 	 */
-	async write(key: string, data: { content: string; hash: string; timestamp: number; sourceType: SourceType }): Promise<void> {
+	async write(
+		key: string,
+		data: { content: string; hash: string; timestamp: number; sourceType: SourceType },
+	): Promise<void> {
 		try {
 			// Ensure directory exists before writing
 			await this.init();
@@ -96,8 +113,7 @@ export class SimpleFilesystemCache implements FilesystemCache {
 			const cacheData = { ...data, key };
 			const content = JSON.stringify(cacheData, null, 2);
 			await fs.writeFile(cacheFile, content, 'utf-8');
-		}
-		catch (error) {
+		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			console.warn(`Failed to write to cache file: ${message}`);
 		}
@@ -114,8 +130,7 @@ export class SimpleFilesystemCache implements FilesystemCache {
 			const cacheFile = await this.getCacheFilePath(key);
 			await fs.access(cacheFile);
 			return true;
-		}
-		catch {
+		} catch {
 			return false;
 		}
 	}
@@ -132,8 +147,7 @@ export class SimpleFilesystemCache implements FilesystemCache {
 					await fs.unlink(`${this.cacheDir}/${file}`);
 				}
 			}
-		}
-		catch (error) {
+		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			console.warn(`Failed to clear cache directory: ${message}`);
 		}
@@ -142,7 +156,10 @@ export class SimpleFilesystemCache implements FilesystemCache {
 	/**
 	 * Get cache statistics
 	 */
-	async getStats(): Promise<{ size: number; entries: Array<{ key: string; timestamp: number; sourceType: SourceType }> }> {
+	async getStats(): Promise<{
+		size: number;
+		entries: Array<{ key: string; timestamp: number; sourceType: SourceType }>;
+	}> {
 		try {
 			const files = await fs.readdir(this.cacheDir);
 			const entries: Array<{ key: string; timestamp: number; sourceType: SourceType }> = [];
@@ -158,12 +175,10 @@ export class SimpleFilesystemCache implements FilesystemCache {
 							entries.push({
 								key: data.key || 'unknown', // Fallback to 'unknown' if key is not stored
 								timestamp: data.timestamp,
-								// eslint-disable-next-line ts/no-unsafe-assignment
 								sourceType: data.sourceType,
 							});
 						}
-					}
-					catch {
+					} catch {
 						// Skip invalid cache files
 					}
 				}
@@ -173,8 +188,7 @@ export class SimpleFilesystemCache implements FilesystemCache {
 				size: entries.length,
 				entries,
 			};
-		}
-		catch {
+		} catch {
 			return {
 				size: 0,
 				entries: [],

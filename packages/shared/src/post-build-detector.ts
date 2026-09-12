@@ -1,7 +1,9 @@
-import type { AssetManifest, TrackedAsset } from './types.ts';
 import { promises as fs } from 'node:fs';
 import { extname, join, relative } from 'node:path';
+
 import { generateHash } from '@csp-plugins/core';
+
+import type { AssetManifest, TrackedAsset } from './types.ts';
 
 /**
  * Detects assets that weren't tracked by build plugins
@@ -46,13 +48,11 @@ export class PostBuildDetector {
 					if (!['node_modules', '.git', '.csp-manifest'].includes(entry.name)) {
 						await this.scanDirectory(fullPath, baseDir);
 					}
-				}
-				else if (this.isAssetFile(entry.name)) {
+				} else if (this.isAssetFile(entry.name)) {
 					await this.processAssetFile(fullPath, relativePath);
 				}
 			}
-		}
-		catch {
+		} catch {
 			// Skip files that can't be read
 		}
 	}
@@ -83,8 +83,7 @@ export class PostBuildDetector {
 			};
 
 			this.detectedAssets.push(asset);
-		}
-		catch {
+		} catch {
 			// Skip files that can't be read
 		}
 	}
