@@ -7,13 +7,20 @@
  * Scheme sources for CSP directives.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy#sources}
  */
-export const schemeSource = ['http:', 'https:', 'data:', 'mediastream:', 'blob:', 'filesystem:'] as const;
+export const schemeSource = [
+	'http:',
+	'https:',
+	'data:',
+	'mediastream:',
+	'blob:',
+	'filesystem:',
+] as const;
 
 /**
  * Valid scheme sources for CSP directives.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy#sources}
  */
-export type SchemeSource = typeof schemeSource[number];
+export type SchemeSource = (typeof schemeSource)[number];
 
 /**
  * Optional path component for URLs.
@@ -52,20 +59,27 @@ export type HostSource = `${HostProtocolSchemes}${HostNameScheme}${PortScheme}`;
  * Valid hash algorithms for CSP crypto sources.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy#sources}
  */
-export const validHashes: Readonly<['sha256', 'sha384', 'sha512']> = ['sha256', 'sha384', 'sha512'] as const;
-export type ValidHashes = typeof validHashes[number];
+export const validHashes: Readonly<['sha256', 'sha384', 'sha512']> = [
+	'sha256',
+	'sha384',
+	'sha512',
+] as const;
+export type ValidHashes = (typeof validHashes)[number];
 
 /**
  * Valid crypto sources including nonce and hash algorithms.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy#sources}
  */
-export const validCrypto: Readonly<['nonce', ...(typeof validHashes)]> = ['nonce', ...validHashes] as const;
+export const validCrypto: Readonly<['nonce', ...typeof validHashes]> = [
+	'nonce',
+	...validHashes,
+] as const;
 
 /**
  * Valid crypto source types.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy#sources}
  */
-export type ValidCrypto = typeof validCrypto[number];
+export type ValidCrypto = (typeof validCrypto)[number];
 
 /**
  * Crypto sources with their values (e.g., "nonce-abc123", "sha256-hash").
@@ -81,7 +95,7 @@ export const httpDelineators = ['/', '?', '#', '\\'] as const;
 /**
  * HTTP delineator characters.
  */
-export type HttpDelineators = typeof httpDelineators[number];
+export type HttpDelineators = (typeof httpDelineators)[number];
 
 /**
  * URI path starting with an HTTP delineator.
@@ -92,13 +106,20 @@ export type UriPath = `${HttpDelineators}${string}`;
  * Base source directives for CSP.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy#sources}
  */
-export const baseSources = ['self', 'unsafe-eval', 'wasm-unsafe-eval', 'unsafe-hashes', 'unsafe-inline', 'none'] as const;
+export const baseSources = [
+	'self',
+	'unsafe-eval',
+	'wasm-unsafe-eval',
+	'unsafe-hashes',
+	'unsafe-inline',
+	'none',
+] as const;
 
 /**
  * Base source directive values.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy#sources}
  */
-export type BaseSources = typeof baseSources[number];
+export type BaseSources = (typeof baseSources)[number];
 
 /**
  * All possible source directives combined.
@@ -170,7 +191,7 @@ export const referrerHeaderOptions = [
  * Referrer header option values.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/referrer}
  */
-export type ReferrerHeaderOptions = typeof referrerHeaderOptions[number];
+export type ReferrerHeaderOptions = (typeof referrerHeaderOptions)[number];
 
 /**
  * Child frame and worker directives.
@@ -271,14 +292,13 @@ export const sandboxDirectives = [
 	'allow-top-navigation',
 	/** Lets the resource navigate the top-level browsing context, but only if initiated by a user gesture. */
 	'allow-top-navigation-by-user-activation',
-
 ] as const;
 
 /**
  * Sandbox directive option values.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/sandbox MDN Content-Security-Policy/sandbox}
  */
-export type SandboxOption = typeof sandboxDirectives[number];
+export type SandboxOption = (typeof sandboxDirectives)[number];
 
 /**
  * Plugin source MIME type format.
@@ -307,7 +327,7 @@ export interface DocumentDirectives {
 	/**
 	 * Enables a sandbox for the requested resource similar to the <iframe> sandbox attribute.
 	 */
-	'sandbox'?: SandboxOption;
+	sandbox?: SandboxOption;
 }
 
 /**
@@ -320,7 +340,7 @@ export const actionSource = ['strict-dynamic', 'report-sample'] as const;
  * Action source type including strict-dynamic and report-sample.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/script-src#strict-dynamic MDN Content-Security-Policy/script-src#strict-dynamic}
  */
-export type ActionSource = Source | typeof actionSource[number];
+export type ActionSource = Source | (typeof actionSource)[number];
 
 /**
  * Navigation source type for navigation directives.
@@ -373,7 +393,7 @@ export const requireTrustedTypePolicy = ['script'] as const;
  * Require trusted types policy type.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/require-trusted-types-for MDN Content-Security-Policy/require-trusted-types-for}
  */
-export type RequireTrustedTypePolicy = typeof requireTrustedTypePolicy[number];
+export type RequireTrustedTypePolicy = (typeof requireTrustedTypePolicy)[number];
 
 /**
  * Trusted types policy values.
@@ -385,7 +405,7 @@ export const trustedTypesPolicy = ['none', 'allow-duplicates', '*'] as const;
  * Trusted types policy type.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/trusted-types MDN Content-Security-Policy/trusted-types}
  */
-export type TrustedTypesPolicy = typeof trustedTypesPolicy[number] | string;
+export type TrustedTypesPolicy = (typeof trustedTypesPolicy)[number] | string;
 
 /**
  * SRI policy values.
@@ -397,7 +417,7 @@ export const sriPolicy = ['script', 'style', 'script style'] as const;
  * SRI policy type.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/require-sri-for MDN Content-Security-Policy/require-sri-for}
  */
-export type SriPolicy = typeof sriPolicy[number];
+export type SriPolicy = (typeof sriPolicy)[number];
 
 /**
  * Other miscellaneous directives.
@@ -415,7 +435,7 @@ export interface OtherDirectives {
 	 * Use the Referrer-Policy header instead.
 	 * @deprecated
 	 */
-	'referrer'?: ReferrerHeaderOptions;
+	referrer?: ReferrerHeaderOptions;
 
 	/**
 	 * Requires the use of SRI for scripts or styles on the page.
@@ -456,15 +476,12 @@ export const directiveValuesByCategory = {
 				Port?: number;
 				Hostname?: string;
 				Protocol?: HostProtocolSchemes;
-			}) => <HostSource>(
-				(args?.Protocol ?? '')
-				+ (args?.Hostname ?? '')
-				+ (
-					['number', 'string'].includes(typeof args?.Port)
+			}): HostSource =>
+				((args?.Protocol ?? '') +
+					(args?.Hostname ?? '') +
+					(['number', 'string'].includes(typeof args?.Port)
 						? `:${args?.Port}`
-						: ''
-				)
-			),
+						: '')) as HostSource,
 		},
 	],
 	schemeSource,
@@ -475,21 +492,19 @@ export const directiveValuesByCategory = {
 				Hash: 'string',
 				Algorithm: validCrypto,
 			},
-			compose: (args: { Hash: string; Algorithm: ValidCrypto }) => `${args.Algorithm}-${args.Hash}`,
+			compose: (args: { Hash: string; Algorithm: ValidCrypto }): CryptoSources =>
+				`${args.Algorithm}-${args.Hash}`,
 		},
 	],
 	baseSources,
-	primitiveSourceBool: [
-		true,
-		false,
-	],
+	primitiveSourceBool: [true, false],
 	primitiveSourceString: [
 		{
 			displayName: 'Any String',
 			consumes: {
 				String: 'string',
 			},
-			compose: (args: { String: string }) => args.String,
+			compose: (args: { String: string }): string => args.String,
 		},
 	],
 	trustedTypesPolicy,
@@ -503,8 +518,10 @@ export const directiveValuesByCategory = {
 				'Beginning Delineator': httpDelineators,
 				'Remaining Path': 'string',
 			},
-			compose: (args: { 'Beginning Delineator': HttpDelineators; 'Remaining Path': string }) =>
-				`${args['Beginning Delineator']}${args['Remaining Path']}`,
+			compose: (args: {
+				'Beginning Delineator': HttpDelineators;
+				'Remaining Path': string;
+			}): UriPath => `${args['Beginning Delineator']}${args['Remaining Path']}`,
 		},
 	],
 	actionSource,
@@ -515,19 +532,21 @@ export const directiveValuesByCategory = {
 				'MIME Category': 'string',
 				'MIME Implementation': 'string',
 			},
-			compose: (args: { 'MIME Category': string; 'MIME Implementation': string }) =>
-				<PluginSource>`${args['MIME Category']}/${args['MIME Implementation']}`,
+			compose: (args: {
+				'MIME Category': string;
+				'MIME Implementation': string;
+			}): PluginSource =>
+				`${args['MIME Category']}/${args['MIME Implementation']}` as PluginSource,
 		},
 		'none',
 	],
-	navigationSource: [
-		'self',
-		'none',
-	],
+	navigationSource: ['self', 'none'],
 	sandboxDirectives,
 } as const;
 
-export const directiveMap: Readonly<Record<(keyof Directives), Readonly<(keyof typeof directiveValuesByCategory)[]>>> = {
+export const directiveMap: Readonly<
+	Record<keyof Directives, Readonly<(keyof typeof directiveValuesByCategory)[]>>
+> = {
 	'child-src': ['hostSource', 'schemeSource', 'cryptoSource', 'baseSources'],
 	'default-src': ['hostSource', 'schemeSource', 'cryptoSource', 'baseSources', 'actionSource'],
 	'frame-src': ['hostSource', 'schemeSource', 'cryptoSource', 'baseSources'],
@@ -547,14 +566,14 @@ export const directiveMap: Readonly<Record<(keyof Directives), Readonly<(keyof t
 	'style-src-attr': ['hostSource', 'schemeSource', 'cryptoSource', 'baseSources'],
 	'base-uri': ['hostSource', 'schemeSource', 'cryptoSource', 'baseSources', 'actionSource'],
 	'plugin-types': ['pluginSource'],
-	'sandbox': ['sandboxDirectives'],
+	sandbox: ['sandboxDirectives'],
 	'form-action': ['hostSource', 'schemeSource', 'navigationSource'],
 	'frame-ancestors': ['hostSource', 'schemeSource', 'navigationSource'],
 	'navigate-to': ['hostSource', 'schemeSource', 'navigationSource'],
 	'report-uri': ['uriPath'],
 	'report-to': ['primitiveSourceString'],
 	'block-all-mixed-content': ['primitiveSourceBool'],
-	'referrer': ['referrerHeaderOptions'],
+	referrer: ['referrerHeaderOptions'],
 	'require-sri-for': ['sriPolicy'],
 	'require-trusted-types-for': ['requireTrustedTypePolicy'],
 	'trusted-types': ['trustedTypesPolicy', 'primitiveSourceString'],
@@ -565,13 +584,12 @@ export const directiveMap: Readonly<Record<(keyof Directives), Readonly<(keyof t
  * Complete CSP directives combining all directive categories.
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy MDN Content-Security-Policy}
  */
-export type Directives
-	= ChildDirectives
-	& SourceDirectives
-	& OtherDirectives
-	& ReportingDirectives
-	& NavigationDirectives
-	& DocumentDirectives;
+export type Directives = ChildDirectives &
+	SourceDirectives &
+	OtherDirectives &
+	ReportingDirectives &
+	NavigationDirectives &
+	DocumentDirectives;
 
 /**
  * Report-to configuration for CSP violation reporting.

@@ -1,6 +1,7 @@
-import type { ExternalSourceType } from './csp-processor.ts';
 import { cwd } from 'node:process';
+
 import { generateHash } from './crypto.ts';
+import type { ExternalSourceType } from './csp-processor.ts';
 
 const DEFAULT_USER_AGENT = `CSP-Plugin/${VERSION}`;
 
@@ -11,12 +12,20 @@ export interface FilesystemCache {
 	/**
 	 * Read cached resource from filesystem
 	 */
-	read: (key: string) => Promise<{ content: string; hash: string; timestamp: number; sourceType: SourceType } | null>;
+	read: (key: string) => Promise<{
+		content: string;
+		hash: string;
+		timestamp: number;
+		sourceType: SourceType;
+	} | null>;
 
 	/**
 	 * Write resource to filesystem cache
 	 */
-	write: (key: string, data: { content: string; hash: string; timestamp: number; sourceType: SourceType }) => Promise<void>;
+	write: (
+		key: string,
+		data: { content: string; hash: string; timestamp: number; sourceType: SourceType },
+	) => Promise<void>;
 
 	/**
 	 * Check if a cached resource exists
@@ -31,7 +40,10 @@ export interface FilesystemCache {
 	/**
 	 * Get cache statistics
 	 */
-	getStats: () => Promise<{ size: number; entries: Array<{ key: string; timestamp: number; sourceType: SourceType }> }>;
+	getStats: () => Promise<{
+		size: number;
+		entries: Array<{ key: string; timestamp: number; sourceType: SourceType }>;
+	}>;
 }
 
 /**
@@ -158,7 +170,10 @@ export interface ExternalResourceOptions {
 /**
  * Internal options with compiled patterns
  */
-interface InternalExternalResourceOptions extends Omit<ExternalResourceOptions, 'localPatterns' | 'remotePatterns' | 'dataPatterns'> {
+interface InternalExternalResourceOptions extends Omit<
+	ExternalResourceOptions,
+	'localPatterns' | 'remotePatterns' | 'dataPatterns'
+> {
 	localPatterns: RegExp[];
 	remotePatterns: RegExp[];
 	dataPatterns: RegExp[];
@@ -233,7 +248,7 @@ interface ResourceCache {
 }
 
 type DeepRequired<T> = Required<{
-	[K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>
+	[K in keyof T]: T[K] extends Required<T[K]> ? T[K] : DeepRequired<T[K]>;
 }>;
 
 /**
@@ -248,8 +263,7 @@ export class ExternalResourceManager {
 		let baseDir = '/';
 		try {
 			baseDir = cwd();
-		}
-		catch {
+		} catch {
 			// Fallback to root if process is not available
 			baseDir = '/';
 		}
@@ -268,7 +282,9 @@ export class ExternalResourceManager {
 		this.options = {
 			// Ensure arrays are properly merged and converted to RegExp objects
 			// Allow custom patterns to be provided, with defaults as fallback
-			localPatterns: compilePatterns(options.localPatterns ?? ['^/', '^\\./', '^[a-zA-Z]:\\\\', '^file://']),
+			localPatterns: compilePatterns(
+				options.localPatterns ?? ['^/', '^\\./', '^[a-zA-Z]:\\\\', '^file://'],
+			),
 			remotePatterns: compilePatterns(options.remotePatterns ?? ['^https?://', '^//']),
 			dataPatterns: compilePatterns(options.dataPatterns ?? ['^data:']),
 			remote: {
@@ -288,7 +304,9 @@ export class ExternalResourceManager {
 			local: {
 				baseDir,
 				...options.local,
-				resolver: options.local?.resolver ?? (async (src, baseDir) => this.resolveLocalPath(src, baseDir)),
+				resolver:
+					options.local?.resolver ??
+					(async (src, baseDir) => this.resolveLocalPath(src, baseDir)),
 				exists: options.local?.exists ?? (async (path) => this.checkLocalAccess(path)),
 				reader: options.local?.reader ?? (async (path) => this.readLocalFile(path)),
 			},
@@ -382,8 +400,7 @@ export class ExternalResourceManager {
 			const fs = await import('node:fs/promises');
 			await fs.access(path);
 			return true;
-		}
-		catch {
+		} catch {
 			return false;
 		}
 	}
@@ -414,8 +431,7 @@ export class ExternalResourceManager {
 
 			// Resolve relative URL against base URL
 			return new URL(src, baseUrl).href;
-		}
-		catch {
+		} catch {
 			// If URL resolution fails, return original src
 			return src;
 		}
@@ -424,7 +440,11 @@ export class ExternalResourceManager {
 	/**
 	 * Check if a URL should be fetched based on patterns
 	 */
-	shouldFetchUrl(url: string, includePatterns?: Array<string | RegExp>, excludePatterns?: Array<string | RegExp>): boolean {
+	shouldFetchUrl(
+		url: string,
+		includePatterns?: Array<string | RegExp>,
+		excludePatterns?: Array<string | RegExp>,
+	): boolean {
 		// Check exclude patterns first
 		if (excludePatterns && excludePatterns.length > 0) {
 			for (const pattern of excludePatterns) {
@@ -432,8 +452,7 @@ export class ExternalResourceManager {
 					if (url.includes(pattern)) {
 						return false;
 					}
-				}
-				else {
+				} else {
 					if (pattern.test(url)) {
 						return false;
 					}
@@ -448,8 +467,7 @@ export class ExternalResourceManager {
 					if (url.includes(pattern)) {
 						return true;
 					}
-				}
-				else {
+				} else {
 					if (pattern.test(url)) {
 						return true;
 					}
@@ -464,7 +482,12 @@ export class ExternalResourceManager {
 	/**
 	 * Read from cache (memory or filesystem)
 	 */
-	private async readFromCache(key: string): Promise<{ content: string; hash: string; timestamp: number; sourceType: SourceType } | null> {
+	private async readFromCache(key: string): Promise<{
+		content: string;
+		hash: string;
+		timestamp: number;
+		sourceType: SourceType;
+	} | null> {
 		// Check memory cache first
 		const memoryEntry = this.cache[key];
 		if (memoryEntry !== undefined) {
@@ -480,8 +503,7 @@ export class ExternalResourceManager {
 					this.cache[key] = fsEntry;
 					return fsEntry;
 				}
-			}
-			catch (error) {
+			} catch (error) {
 				// Silently fall back to memory-only cache
 				console.warn(`Failed to read from filesystem cache: ${String(error)}`);
 			}
@@ -493,7 +515,10 @@ export class ExternalResourceManager {
 	/**
 	 * Write to cache (memory and filesystem if available)
 	 */
-	private async writeToCache(key: string, data: { content: string; hash: string; timestamp: number; sourceType: SourceType }): Promise<void> {
+	private async writeToCache(
+		key: string,
+		data: { content: string; hash: string; timestamp: number; sourceType: SourceType },
+	): Promise<void> {
 		// Write to memory cache
 		this.cache[key] = data;
 
@@ -501,8 +526,7 @@ export class ExternalResourceManager {
 		if (this.options.filesystemCache) {
 			try {
 				await this.options.filesystemCache.write(key, data);
-			}
-			catch (error) {
+			} catch (error) {
 				// Silently fall back to memory-only cache
 				console.warn(`Failed to write to filesystem cache: ${String(error)}`);
 			}
@@ -518,7 +542,7 @@ export class ExternalResourceManager {
 
 		// Check cache (memory or filesystem)
 		const cacheEntry = await this.readFromCache(cacheKey);
-		if (cacheEntry !== null && (now - cacheEntry.timestamp) < 3600000) {
+		if (cacheEntry !== null && now - cacheEntry.timestamp < 3600000) {
 			return {
 				content: cacheEntry.content,
 				hash: cacheEntry.hash,
@@ -528,7 +552,10 @@ export class ExternalResourceManager {
 		for (let attempt = 1; attempt <= (this.options.remote?.retry?.attempts ?? 0); attempt++) {
 			try {
 				const controller = new AbortController();
-				const timeoutId = setTimeout(() => controller.abort(), this.options.remote?.timeout ?? 10000);
+				const timeoutId = setTimeout(
+					() => controller.abort(),
+					this.options.remote?.timeout ?? 10000,
+				);
 
 				const response = await fetch(url, {
 					signal: controller.signal,
@@ -570,8 +597,7 @@ export class ExternalResourceManager {
 				});
 
 				return { content, hash };
-			}
-			catch (error) {
+			} catch (error) {
 				// Don't retry on certain errors
 				if (error instanceof Error) {
 					if (error.name === 'AbortError' || error.message.includes('too large')) {
@@ -581,7 +607,9 @@ export class ExternalResourceManager {
 
 				// Wait before retry (except on last attempt)
 				if (attempt < (this.options.remote?.retry?.attempts ?? 0)) {
-					await new Promise((resolve) => setTimeout(resolve, this.options.remote?.retry?.delay ?? 1000));
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.options.remote?.retry?.delay ?? 1000),
+					);
 				}
 			}
 		}
@@ -603,7 +631,7 @@ export class ExternalResourceManager {
 
 		// Check cache (memory or filesystem)
 		const cacheEntry = await this.readFromCache(cacheKey);
-		if (cacheEntry !== null && (now - cacheEntry.timestamp) < 3600000) {
+		if (cacheEntry !== null && now - cacheEntry.timestamp < 3600000) {
 			return {
 				url: src,
 				sourceType: cacheEntry.sourceType,
@@ -634,8 +662,7 @@ export class ExternalResourceManager {
 				});
 
 				return result;
-			}
-			catch (error) {
+			} catch (error) {
 				return {
 					url: src,
 					sourceType: 'data',
@@ -674,8 +701,7 @@ export class ExternalResourceManager {
 				});
 
 				return result;
-			}
-			catch (error) {
+			} catch (error) {
 				return {
 					url: classification.resolvedPath,
 					sourceType: 'local',
@@ -722,8 +748,7 @@ export class ExternalResourceManager {
 					});
 
 					return result;
-				}
-				catch (error) {
+				} catch (error) {
 					return {
 						url: resolvedUrl,
 						sourceType: 'remote',
@@ -754,8 +779,7 @@ export class ExternalResourceManager {
 					});
 
 					return processResult;
-				}
-				else {
+				} else {
 					return {
 						url: resolvedUrl,
 						sourceType: 'remote',
@@ -802,8 +826,7 @@ export class ExternalResourceManager {
 		if (this.options.filesystemCache) {
 			try {
 				await this.options.filesystemCache.clear();
-			}
-			catch (error) {
+			} catch (error) {
 				console.warn(`Failed to clear filesystem cache: ${String(error)}`);
 			}
 		}
@@ -812,7 +835,10 @@ export class ExternalResourceManager {
 	/**
 	 * Get cache statistics
 	 */
-	async getCacheStats(): Promise<{ size: number; entries: Array<{ url: string; timestamp: number; sourceType: SourceType }> }> {
+	async getCacheStats(): Promise<{
+		size: number;
+		entries: Array<{ url: string; timestamp: number; sourceType: SourceType }>;
+	}> {
 		const entries = Object.entries(this.cache).map(([url, entry]) => ({
 			url,
 			timestamp: entry.timestamp,
@@ -825,10 +851,16 @@ export class ExternalResourceManager {
 				const fsStats = await this.options.filesystemCache.getStats();
 				return {
 					size: Object.keys(this.cache).length + fsStats.size,
-					entries: [...entries, ...fsStats.entries.map((entry) => ({ url: entry.key, timestamp: entry.timestamp, sourceType: entry.sourceType }))],
+					entries: [
+						...entries,
+						...fsStats.entries.map((entry) => ({
+							url: entry.key,
+							timestamp: entry.timestamp,
+							sourceType: entry.sourceType,
+						})),
+					],
 				};
-			}
-			catch (error) {
+			} catch (error) {
 				console.warn(`Failed to get filesystem cache stats: ${String(error)}`);
 			}
 		}

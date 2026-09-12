@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { DirectiveMap } from '../src/index.js';
+
+import {
+	DirectiveMap,
+	type DirectiveName,
+	type DirectiveResult,
+	type ReportTos,
+} from '../src/index.js';
 
 function isObject(obj: unknown): obj is Record<PropertyKey, unknown> {
 	return Object.prototype.toString.call(obj) === '[object Object]';
@@ -9,6 +15,15 @@ function hasOwnProperty<T>(obj: T, prop: PropertyKey): prop is keyof T {
 }
 
 describe('DirectiveMap.get()', () => {
+	it('exports named types for map entries and Report-To', () => {
+		const name: DirectiveName = 'report-to';
+		const entry: DirectiveResult | undefined = DirectiveMap.get(name);
+		expect(entry).toBeDefined();
+		expect(entry?.categories).toContain('primitiveSourceString');
+		const reportTo: ReportTos = [];
+		expect(Array.isArray(reportTo)).toBe(true);
+	});
+
 	describe('Dynamic Options', () => {
 		it('Handles Hostname/URL Source', () => {
 			const src = DirectiveMap.get('child-src');
@@ -21,9 +36,9 @@ describe('DirectiveMap.get()', () => {
 					item.displayName === 'Hostname/URL Source'
 				) {
 					result1 = item.compose?.({
-						'Hostname': 'example.com',
-						'Port': 443,
-						'Protocol': 'https://',
+						Hostname: 'example.com',
+						Port: 443,
+						Protocol: 'https://',
 					});
 				}
 			}
@@ -49,8 +64,8 @@ describe('DirectiveMap.get()', () => {
 					item.displayName === 'Crypto Nonce/Hash Source'
 				) {
 					result = item.compose?.({
-						'Algorithm': 'sha256',
-						'Hash': 'SomeBase64String',
+						Algorithm: 'sha256',
+						Hash: 'SomeBase64String',
 					});
 				}
 			}
@@ -100,7 +115,7 @@ describe('DirectiveMap.get()', () => {
 					item.displayName === 'Any String'
 				) {
 					result = item.compose?.({
-						'String': 'hello world',
+						String: 'hello world',
 					});
 				}
 			}

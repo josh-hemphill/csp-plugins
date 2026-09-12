@@ -1,11 +1,13 @@
-import type { Element } from 'domhandler';
-import type { CSPProcessorOptions } from '../lib/csp-processor.js';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import type { Element } from 'domhandler';
 import { findOne } from 'domutils';
 import { ElementType } from 'htmlparser2';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { CSPProcessorOptions } from '../lib/csp-processor.js';
 import { CSPProcessor } from '../lib/csp-processor.js';
 
 // Get current directory for ES modules
@@ -255,7 +257,8 @@ describe('cSPProcessor', () => {
 
 			expect(result.html).toBeDefined();
 			// Should only have one CSP meta tag
-			const cspMetaCount = (result.html!.match(/http-equiv="Content-Security-Policy"/g) || []).length;
+			const cspMetaCount = (result.html!.match(/http-equiv="Content-Security-Policy"/g) || [])
+				.length;
 			expect(cspMetaCount).toBe(1);
 		});
 
@@ -267,7 +270,8 @@ describe('cSPProcessor', () => {
 
 			expect(result.html).toBeDefined();
 			// Should have both original and new CSP meta tags
-			const cspMetaCount = (result.html!.match(/http-equiv="Content-Security-Policy"/g) || []).length;
+			const cspMetaCount = (result.html!.match(/http-equiv="Content-Security-Policy"/g) || [])
+				.length;
 			expect(cspMetaCount).toBe(2);
 		});
 
@@ -383,7 +387,7 @@ describe('cSPProcessor', () => {
 		});
 
 		it('uses custom nonce generator', async () => {
-			const customNonceGenerator = vi.fn().mockResolvedValue('custom-nonce-123');
+			const customNonceGenerator = vi.fn(async (): Promise<string> => 'custom-nonce-123');
 			const proc = new CSPProcessor({ nonceGenerator: customNonceGenerator });
 
 			const result = await proc.processHTML(basicHtml);

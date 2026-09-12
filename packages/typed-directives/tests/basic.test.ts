@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
+
+import { describe, it, expect, vi } from 'vitest';
+
 import { Directives, ReportTo } from '../src/csp.types';
 import { CspDirectives } from '../src/index';
-import { createHash } from 'node:crypto';
-import { describe, it, expect, vi } from 'vitest';
 
 const sample64Hash = (algorithm: string) => {
 	const hash = createHash(algorithm);
@@ -24,7 +26,7 @@ describe('new CspDirectives()', () => {
 	});
 	it('Defaults Referer to deprecated referrer directive if present', () => {
 		const inst = new CspDirectives({
-			'referrer': 'strict-origin',
+			referrer: 'strict-origin',
 		});
 		expect(inst.ReferrerHeader).toBe('strict-origin');
 	});
@@ -80,7 +82,7 @@ describe('new CspDirectives()', () => {
 				'frame-ancestors': 'self',
 				'navigate-to': 'none',
 				'report-to': 'hello',
-				'referrer': 'strict-origin',
+				referrer: 'strict-origin',
 				'trusted-types': sampleSha256,
 			};
 			const endpoint = 'https://example.com' as const;
@@ -95,9 +97,15 @@ describe('new CspDirectives()', () => {
 			const getHeaders = vi.spyOn(inst, 'getHeaders');
 			const headers = inst.getHeaders();
 			expect(getHeaders).toHaveReturned();
-			expect(headers['Content-Security-Policy-Report-Only']).toMatchInlineSnapshot(`"child-src 'none'; default-src 'self'; frame-src 'unsafe-eval'; connect-src example.com; font-src https:; img-src 'self'; manifest-src https://example.com; media-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; object-src example.com:443; prefetch-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; script-src 'strict-dynamic'; script-src-elem 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; script-src-attr 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src-elem 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src-attr 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; base-uri 'strict-dynamic'; form-action 'self'; frame-ancestors 'self'; navigate-to 'none'; report-to hello; referrer 'strict-origin'; trusted-types 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=';"`);
-			expect(headers['Content-Security-Policy']).toMatchInlineSnapshot(`"child-src 'none'; default-src 'self'; frame-src 'unsafe-eval'; connect-src example.com; font-src https:; img-src 'self'; manifest-src https://example.com; media-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; object-src example.com:443; prefetch-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; script-src 'strict-dynamic'; script-src-elem 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; script-src-attr 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src-elem 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src-attr 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; base-uri 'strict-dynamic'; form-action 'self'; frame-ancestors 'self'; navigate-to 'none'; report-to hello; referrer 'strict-origin'; trusted-types 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=';"`);
-			expect(headers['Report-To']).toMatchInlineSnapshot(`"[{"max_age":12000,"group":"hello","endpoints":[{"url":"https://example.com"}]}]"`);
+			expect(headers['Content-Security-Policy-Report-Only']).toMatchInlineSnapshot(
+				`"child-src 'none'; default-src 'self'; frame-src 'unsafe-eval'; connect-src example.com; font-src https:; img-src 'self'; manifest-src https://example.com; media-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; object-src example.com:443; prefetch-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; script-src 'strict-dynamic'; script-src-elem 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; script-src-attr 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src-elem 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src-attr 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; base-uri 'strict-dynamic'; form-action 'self'; frame-ancestors 'self'; navigate-to 'none'; report-to hello; referrer 'strict-origin'; trusted-types 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=';"`,
+			);
+			expect(headers['Content-Security-Policy']).toMatchInlineSnapshot(
+				`"child-src 'none'; default-src 'self'; frame-src 'unsafe-eval'; connect-src example.com; font-src https:; img-src 'self'; manifest-src https://example.com; media-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; object-src example.com:443; prefetch-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; script-src 'strict-dynamic'; script-src-elem 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; script-src-attr 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src-elem 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; style-src-attr 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek='; base-uri 'strict-dynamic'; form-action 'self'; frame-ancestors 'self'; navigate-to 'none'; report-to hello; referrer 'strict-origin'; trusted-types 'sha256-uU0nuZNNPgilLlLX2n2r+sSE7+N6U4DukIj3rOLvzek=';"`,
+			);
+			expect(headers['Report-To']).toMatchInlineSnapshot(
+				`"[{"max_age":12000,"group":"hello","endpoints":[{"url":"https://example.com"}]}]"`,
+			);
 			expect(headers['Referrer-Policy']).toMatchInlineSnapshot(`"strict-origin"`);
 		});
 		it('Throws on invalid "report-to" group name', () => {

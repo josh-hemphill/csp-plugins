@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { CSPProcessor } from '../lib/csp-processor.ts';
 import { ExternalResourceManager } from '../lib/external-resource-manager.ts';
 
@@ -95,9 +96,13 @@ describe('externalResourceManager', () => {
 	it('should resolve URLs correctly', () => {
 		const manager = new ExternalResourceManager();
 
-		expect(manager.resolveUrl('https://example.com/script.js')).toBe('https://example.com/script.js');
+		expect(manager.resolveUrl('https://example.com/script.js')).toBe(
+			'https://example.com/script.js',
+		);
 		expect(manager.resolveUrl('//example.com/script.js')).toBe('https://example.com/script.js');
-		expect(manager.resolveUrl('/script.js', 'https://example.com')).toBe('https://example.com/script.js');
+		expect(manager.resolveUrl('/script.js', 'https://example.com')).toBe(
+			'https://example.com/script.js',
+		);
 	});
 
 	it('should check URL patterns correctly', () => {
@@ -105,8 +110,12 @@ describe('externalResourceManager', () => {
 
 		expect(manager.shouldFetchUrl('https://example.com/script.js', ['example.com'])).toBe(true);
 		expect(manager.shouldFetchUrl('https://other.com/script.js', ['example.com'])).toBe(false);
-		expect(manager.shouldFetchUrl('https://example.com/script.js', [], ['blocked.com'])).toBe(true);
-		expect(manager.shouldFetchUrl('https://blocked.com/script.js', [], ['blocked.com'])).toBe(false);
+		expect(manager.shouldFetchUrl('https://example.com/script.js', [], ['blocked.com'])).toBe(
+			true,
+		);
+		expect(manager.shouldFetchUrl('https://blocked.com/script.js', [], ['blocked.com'])).toBe(
+			false,
+		);
 	});
 
 	it('should classify sources correctly', async () => {
@@ -202,12 +211,18 @@ describe('externalResourceManager', () => {
 		const manager = new ExternalResourceManager();
 
 		// Test remote source
-		const remoteResult = await manager.processExternalResource('https://example.com/script.js', 'script');
+		const remoteResult = await manager.processExternalResource(
+			'https://example.com/script.js',
+			'script',
+		);
 		expect(remoteResult.sourceType).toBe('remote');
 		expect(remoteResult.url).toBe('https://example.com/script.js');
 
 		// Test data URL
-		const dataResult = await manager.processExternalResource('data:text/javascript,console.log("test")', 'script');
+		const dataResult = await manager.processExternalResource(
+			'data:text/javascript,console.log("test")',
+			'script',
+		);
 		expect(dataResult.sourceType).toBe('data');
 		expect(dataResult.fetched).toBe(true);
 		expect(dataResult.content).toBe('data:text/javascript,console.log("test")');
@@ -222,11 +237,17 @@ describe('externalResourceManager', () => {
 		const manager = new ExternalResourceManager();
 
 		// First call
-		const result1 = await manager.processExternalResource('https://example.com/script.js', 'script');
+		const result1 = await manager.processExternalResource(
+			'https://example.com/script.js',
+			'script',
+		);
 		expect(result1.sourceType).toBe('remote');
 
 		// Second call should use cache
-		const result2 = await manager.processExternalResource('https://example.com/script.js', 'script');
+		const result2 = await manager.processExternalResource(
+			'https://example.com/script.js',
+			'script',
+		);
 		expect(result2.sourceType).toBe('remote');
 
 		// Check cache stats

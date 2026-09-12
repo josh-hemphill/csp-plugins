@@ -15,13 +15,13 @@ export async function generateNonce(): Promise<string> {
 	try {
 		const nodeCrypto = await import('node:crypto');
 		return nodeCrypto.randomBytes(16).toString('base64');
-	}
-	catch {
+	} catch {
 		console.warn('Crypto API is not available in this environment');
 		console.warn('Falling back to Math.random()');
 		// Ultimate fallback
-		return Math.random().toString(36).substring(2, 15)
-			+ Math.random().toString(36).substring(2, 15);
+		return (
+			Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+		);
 	}
 }
 
@@ -42,9 +42,11 @@ export async function generateHash(content: string, algorithm: ValidCrypto): Pro
 	// Node.js crypto fallback
 	try {
 		const nodeCrypto = await import('node:crypto');
-		return nodeCrypto.createHash(algorithm as string).update(content, 'utf8').digest('base64');
-	}
-	catch {
+		return nodeCrypto
+			.createHash(algorithm as string)
+			.update(content, 'utf8')
+			.digest('base64');
+	} catch {
 		throw new Error('Hash generation not supported in this environment');
 	}
 }

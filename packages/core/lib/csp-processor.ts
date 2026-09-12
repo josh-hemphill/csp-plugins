@@ -1,13 +1,23 @@
+import { CspDirectives, type CspDirectiveHeaders } from '@csp-plugins/typed-directives';
 import type { ActionSource, Sources, ValidCrypto } from '@csp-plugins/typed-directives/csp.types';
 import type { DomSerializerOptions } from 'dom-serializer';
-import type { ChildNode, Document, Element } from 'domhandler';
-import type { ExternalResourceOptions } from './external-resource-manager.ts';
-import { CspDirectives } from '@csp-plugins/typed-directives';
 import serialize from 'dom-serializer';
+import type { ChildNode, Document, Element } from 'domhandler';
 import { Element as DomElement, DomHandler } from 'domhandler';
-import { append, appendChild, findAll, findOne, prepend, prependChild, removeElement, replaceElement } from 'domutils';
+import {
+	append,
+	appendChild,
+	findAll,
+	findOne,
+	prepend,
+	prependChild,
+	removeElement,
+	replaceElement,
+} from 'domutils';
 import { ElementType, Parser } from 'htmlparser2';
+
 import { generateHash, generateNonce } from './crypto.ts';
+import type { ExternalResourceOptions } from './external-resource-manager.ts';
 import { ExternalResourceManager } from './external-resource-manager.ts';
 
 const serializeOptions: DomSerializerOptions = {
@@ -110,16 +120,10 @@ export interface CSPProcessorOptions {
 		 * Position in head: 'first', 'last', or 'after-title'
 		 */
 		position?:
-		| 'first'
-		| 'last'
-		| 'after-title'
-		| ((head: Element) => [
-			| 'prepend'
-			| 'append'
-			| 'prepend-child'
-			| 'append-child',
-			Element,
-		]);
+			| 'first'
+			| 'last'
+			| 'after-title'
+			| ((head: Element) => ['prepend' | 'append' | 'prepend-child' | 'append-child', Element]);
 	};
 
 	/**
@@ -202,11 +206,13 @@ export type AnalysisNode<Inline> = {
 	nonce?: string;
 	element: ChildNode;
 	hash?: string;
-} & (Inline extends true ? {
-	content: string;
-} : {
-	src: string;
-});
+} & (Inline extends true
+	? {
+			content: string;
+		}
+	: {
+			src: string;
+		});
 
 /**
  * Result of HTML analysis
@@ -267,6 +273,11 @@ export interface CSPResult {
 	builder: CspDirectives;
 
 	/**
+	 * Generated headers. Empty when `generateHeaders` is false.
+	 */
+	headers: CspDirectiveHeaders | Record<string, never>;
+
+	/**
 	 * Generated nonces for this request
 	 */
 	nonces: {
@@ -316,7 +327,7 @@ export class CSPProcessor {
 					others: false,
 					includePatterns: [],
 					excludePatterns: [],
-					...(options.externalSources?.noncing ?? {}),
+					...options.externalSources?.noncing,
 				},
 				hashing: {
 					scripts: false,
@@ -330,7 +341,7 @@ export class CSPProcessor {
 					fetchExternal: false,
 					localScriptIntegrity: false, // Disabled by default (advanced use case)
 					localStyleIntegrity: true, // Enabled by default (common use case)
-					...(options.externalSources?.hashing ?? {}),
+					...options.externalSources?.hashing,
 				},
 				resourceManager: options.externalSources?.resourceManager ?? {},
 			},
@@ -348,13 +359,18 @@ export class CSPProcessor {
 			...options,
 		};
 
-		this.externalResourceManager = new ExternalResourceManager(this.options.externalSources?.resourceManager);
+		this.externalResourceManager = new ExternalResourceManager(
+			this.options.externalSources?.resourceManager,
+		);
 	}
 
 	/**
 	 * Get cache statistics
 	 */
-	async getCacheStats(): Promise<{ size: number; entries: Array<{ url: string; timestamp: number; sourceType: string }> }> {
+	async getCacheStats(): Promise<{
+		size: number;
+		entries: Array<{ url: string; timestamp: number; sourceType: string }>;
+	}> {
 		return this.externalResourceManager.getCacheStats();
 	}
 
@@ -389,18 +405,18 @@ export class CSPProcessor {
 		return serialize(element.children, serializeOptions);
 	}
 
-	private tryPushSource<T extends AnalysisNode<false> | AnalysisNode<true>>(result: Array<T>, source: T): void {
+	private tryPushSource<T extends AnalysisNode<false> | AnalysisNode<true>>(
+		result: Array<T>,
+		source: T,
+	): void {
 		if ('content' in source) {
 			const R = result as Array<AnalysisNode<true>>;
-			if (R.find((s) =>
-				s.content === source.content) === undefined) {
+			if (R.find((s) => s.content === source.content) === undefined) {
 				R.push(source);
 			}
-		}
-		else {
+		} else {
 			const R = result as Array<AnalysisNode<false>>;
-			if (R.find((s) =>
-				s.src === source.src) === undefined) {
+			if (R.find((s) => s.src === source.src) === undefined) {
 				R.push(source);
 			}
 		}
@@ -424,9 +440,12 @@ export class CSPProcessor {
 
 		const elements = document.children;
 
-		const elementSubset = findAll((element) =>
-			[ElementType.Script, ElementType.Style, ElementType.Tag].includes(element.type)
-			&& ['script', 'style', 'link', 'img', 'head'].includes(element.name), elements);
+		const elementSubset = findAll(
+			(element) =>
+				[ElementType.Script, ElementType.Style, ElementType.Tag].includes(element.type) &&
+				['script', 'style', 'link', 'img', 'head'].includes(element.name),
+			elements,
+		);
 
 		// Process all elements
 		for (const ele of elementSubset) {
@@ -438,8 +457,7 @@ export class CSPProcessor {
 						src,
 						element,
 					} as AnalysisNode<false>);
-				}
-				else {
+				} else {
 					// Inline script
 					const content = this.sourceTextFromElementChildren(element) || '';
 					if (content.trim()) {
@@ -449,8 +467,7 @@ export class CSPProcessor {
 						} as AnalysisNode<true>);
 					}
 				}
-			}
-			else if (ele.type === ElementType.Style) {
+			} else if (ele.type === ElementType.Style) {
 				const element = ele;
 				const src = element.attribs.src;
 				if (src) {
@@ -458,8 +475,7 @@ export class CSPProcessor {
 						src,
 						element,
 					} as AnalysisNode<false>);
-				}
-				else {
+				} else {
 					// Inline style
 					const content = this.sourceTextFromElementChildren(element) || '';
 					if (content.trim()) {
@@ -469,8 +485,7 @@ export class CSPProcessor {
 						} as AnalysisNode<true>);
 					}
 				}
-			}
-			else if (ele.type === ElementType.Tag && ele.name === 'link') {
+			} else if (ele.type === ElementType.Tag && ele.name === 'link') {
 				const element = ele;
 				const rel = element.attribs.rel;
 				const href = element.attribs.href;
@@ -480,16 +495,14 @@ export class CSPProcessor {
 							src: href,
 							element,
 						} as AnalysisNode<false>);
-					}
-					else if (rel === 'preload' || rel === 'prefetch') {
+					} else if (rel === 'preload' || rel === 'prefetch') {
 						const as = element.attribs.as;
 						if (as === 'font') {
 							this.tryPushSource(result.fontSources, {
 								src: href,
 								element,
 							} as AnalysisNode<false>);
-						}
-						else if (as) {
+						} else if (as) {
 							if (result.otherSources?.[as] === undefined) {
 								result.otherSources[as] = [];
 							}
@@ -500,8 +513,7 @@ export class CSPProcessor {
 						}
 					}
 				}
-			}
-			else if (ele.type === ElementType.Tag && ele.name === 'img') {
+			} else if (ele.type === ElementType.Tag && ele.name === 'img') {
 				const element = ele;
 				const src = element.attribs.src;
 				if (src) {
@@ -510,8 +522,7 @@ export class CSPProcessor {
 						element,
 					} as AnalysisNode<false>);
 				}
-			}
-			else if (ele.type === ElementType.Tag && ele.name === 'head') {
+			} else if (ele.type === ElementType.Tag && ele.name === 'head') {
 				result.head = ele;
 			}
 		}
@@ -530,7 +541,11 @@ export class CSPProcessor {
 	/**
 	 * Inject CSP meta tag into document head
 	 */
-	private injectCSPMetaTag(document: Document, cspDirectives: CspDirectives, headElement?: Element): void {
+	private injectCSPMetaTag(
+		document: Document,
+		cspDirectives: CspDirectives,
+		headElement?: Element,
+	): void {
 		const head = headElement ?? this.createHead(document);
 
 		// If injectMetaTag is false, remove any existing CSP meta tags
@@ -552,8 +567,7 @@ export class CSPProcessor {
 		if (this.options.metaTagOptions.replaceExisting && existingCSPMetaTags.length > 0) {
 			replaceElement(existingCSPMetaTags.shift()!, newMetaTag);
 			existingCSPMetaTags.forEach(removeElement);
-		}
-		else {
+		} else {
 			this.insertMetaTagAtPosition(head, newMetaTag);
 		}
 	}
@@ -589,7 +603,7 @@ export class CSPProcessor {
 	private createCSPMetaTag(cspValue: string): Element {
 		const metaTag = new DomElement('meta', {
 			'http-equiv': 'Content-Security-Policy',
-			'content': cspValue,
+			content: cspValue,
 			...this.options.metaTagOptions.attributes,
 		});
 
@@ -604,24 +618,17 @@ export class CSPProcessor {
 
 		if (typeof position === 'function') {
 			const [resolvedPosition, resolvedElement] = position(head);
-			if (resolvedPosition === 'prepend')
-				return prepend(resolvedElement, metaTag);
+			if (resolvedPosition === 'prepend') return prepend(resolvedElement, metaTag);
 
-			if (resolvedPosition === 'append')
-				return append(resolvedElement, metaTag);
+			if (resolvedPosition === 'append') return append(resolvedElement, metaTag);
 
-			if (resolvedPosition === 'prepend-child')
-				return prependChild(resolvedElement, metaTag);
+			if (resolvedPosition === 'prepend-child') return prependChild(resolvedElement, metaTag);
 
-			if (resolvedPosition === 'append-child')
-				return appendChild(resolvedElement, metaTag);
-		}
-		else if (typeof position === 'string') {
-			if (position === 'first')
-				return prependChild(head, metaTag);
+			if (resolvedPosition === 'append-child') return appendChild(resolvedElement, metaTag);
+		} else if (typeof position === 'string') {
+			if (position === 'first') return prependChild(head, metaTag);
 
-			if (position === 'last')
-				return appendChild(head, metaTag);
+			if (position === 'last') return appendChild(head, metaTag);
 
 			if (position === 'after-title') {
 				const title = findOne(
@@ -640,16 +647,19 @@ export class CSPProcessor {
 	/**
 	 * Process DOM and generate CSP
 	 */
-	async processDOM(document: Document, requestNonces?: { script?: string; style?: string }): Promise<CSPResult> {
+	async processDOM(
+		document: Document,
+		requestNonces?: { script?: string; style?: string },
+	): Promise<CSPResult> {
 		const analysis = await this.analyzeDOM(document);
 
 		// Generate nonces if enabled and not provided
 		const nonces = {
 			script: this.options.enableNonces
-				? (requestNonces?.script ?? await this.options.nonceGenerator())
+				? (requestNonces?.script ?? (await this.options.nonceGenerator()))
 				: undefined,
 			style: this.options.enableNonces
-				? (requestNonces?.style ?? await this.options.nonceGenerator())
+				? (requestNonces?.style ?? (await this.options.nonceGenerator()))
 				: undefined,
 		};
 
@@ -780,6 +790,16 @@ export class CSPProcessor {
 				}
 			}
 		}
+		if (this.options.developmentMode) {
+			if (this.options.development?.allowUnsafeInline) {
+				styleSrc.push('unsafe-inline');
+				scriptSrc.push('unsafe-inline');
+			}
+			if (this.options.development?.allowUnsafeEval) {
+				scriptSrc.push('unsafe-eval');
+			}
+		}
+
 		// Update CSP directives
 		if (scriptSrc.length > 0) {
 			const base = cspBuilder.CSP['script-src'];
@@ -803,28 +823,23 @@ export class CSPProcessor {
 		}
 
 		if (this.options.developmentMode) {
-			if (this.options.development?.allowUnsafeInline) {
-				styleSrc.push('unsafe-inline');
-			}
-			if (this.options.development?.allowUnsafeInline) {
-				scriptSrc.push('unsafe-inline');
-			}
-			if (this.options.development?.allowUnsafeEval) {
-				scriptSrc.push('unsafe-eval');
-			}
 			const additionalSources = this.options.development?.additionalSources ?? [];
-			// Add development sources
 			if (additionalSources.length > 0) {
 				const defaultSrc = cspBuilder.CSP['default-src'] ?? [];
-				const additionalSources = this.options.development.additionalSources ?? [];
 				cspBuilder.CSP = {
 					...cspBuilder.CSP,
-					'default-src': [...(Array.isArray(defaultSrc) ? defaultSrc : [defaultSrc]), ...additionalSources] as ActionSource[],
+					'default-src': [
+						...(Array.isArray(defaultSrc) ? defaultSrc : [defaultSrc]),
+						...additionalSources,
+					] as ActionSource[],
 				};
 			}
 		}
 		// Inject nonces into DOM if enabled
-		if (this.options.enableNonces && (nonces.script !== undefined || nonces.style !== undefined)) {
+		if (
+			this.options.enableNonces &&
+			(nonces.script !== undefined || nonces.style !== undefined)
+		) {
 			// Add nonces to inline scripts and styles
 			if (nonces.script !== undefined) {
 				for (const inlineScript of analysis.inlineScripts) {
@@ -857,6 +872,7 @@ export class CSPProcessor {
 
 		return {
 			builder: cspBuilder,
+			headers: this.options.generateHeaders ? cspBuilder.getHeaders() : {},
 			nonces,
 			analysis,
 			html: modifiedHtml,
@@ -866,7 +882,10 @@ export class CSPProcessor {
 	/**
 	 * Process HTML string (parses and then processes)
 	 */
-	async processHTML(html: string, requestNonces?: { script?: string; style?: string }): Promise<CSPResult> {
+	async processHTML(
+		html: string,
+		requestNonces?: { script?: string; style?: string },
+	): Promise<CSPResult> {
 		const document = this.parseHTML(html);
 		return this.processDOM(document, requestNonces);
 	}
@@ -874,7 +893,10 @@ export class CSPProcessor {
 	/**
 	 * Check if a source should be nonced based on external noncing options
 	 */
-	private shouldNonceExternalSource(source: string, type: 'script' | 'style' | 'image' | 'font' | 'other'): boolean {
+	private shouldNonceExternalSource(
+		source: string,
+		type: 'script' | 'style' | 'image' | 'font' | 'other',
+	): boolean {
 		const externalNoncing = this.options.externalSources?.noncing ?? {};
 
 		// Check if noncing is enabled for this type
@@ -890,8 +912,7 @@ export class CSPProcessor {
 				if (source.includes(pattern)) {
 					return false;
 				}
-			}
-			else {
+			} else {
 				if (pattern.test(source)) {
 					return false;
 				}
@@ -906,8 +927,7 @@ export class CSPProcessor {
 					if (source.includes(pattern)) {
 						return true;
 					}
-				}
-				else {
+				} else {
 					if (pattern.test(source)) {
 						return true;
 					}
@@ -922,7 +942,10 @@ export class CSPProcessor {
 	/**
 	 * Generate nonce for external sources
 	 */
-	private async generateExternalNonce(src: string, type: 'script' | 'style' | 'image' | 'font' | 'other'): Promise<string> {
+	private async generateExternalNonce(
+		src: string,
+		type: 'script' | 'style' | 'image' | 'font' | 'other',
+	): Promise<string> {
 		const externalNoncing = this.options.externalSources?.noncing;
 		const generator = externalNoncing?.nonceGenerator || this.options.nonceGenerator;
 		return generator(src, type);
@@ -931,7 +954,10 @@ export class CSPProcessor {
 	/**
 	 * Check if a source should be hashed based on external hashing options
 	 */
-	private shouldHashExternalSource(source: string, type: 'script' | 'style' | 'image' | 'font' | 'other'): boolean {
+	private shouldHashExternalSource(
+		source: string,
+		type: 'script' | 'style' | 'image' | 'font' | 'other',
+	): boolean {
 		const externalHashing = this.options.externalSources?.hashing ?? {};
 
 		// Check if hashing is enabled for this type
@@ -962,8 +988,7 @@ export class CSPProcessor {
 				if (source.includes(pattern)) {
 					return false;
 				}
-			}
-			else {
+			} else {
 				if (pattern.test(source)) {
 					return false;
 				}
@@ -978,8 +1003,7 @@ export class CSPProcessor {
 					if (source.includes(pattern)) {
 						return true;
 					}
-				}
-				else {
+				} else {
 					if (pattern.test(source)) {
 						return true;
 					}
@@ -994,7 +1018,10 @@ export class CSPProcessor {
 	/**
 	 * Process external source for hashing
 	 */
-	private async processExternalSourceForHashing(src: string, type: 'script' | 'style' | 'image' | 'font' | 'other'): Promise<{ hash?: string }> {
+	private async processExternalSourceForHashing(
+		src: string,
+		type: 'script' | 'style' | 'image' | 'font' | 'other',
+	): Promise<{ hash?: string }> {
 		const externalHashing = this.options.externalSources?.hashing ?? {};
 
 		// Use custom hash generator if provided
@@ -1002,22 +1029,24 @@ export class CSPProcessor {
 			try {
 				const hash = await externalHashing.hashGenerator(src, type);
 				return { hash };
-			}
-			catch {
+			} catch {
 				return {};
 			}
 		}
 
 		// Use external resource manager for fetching and hashing
-		const result = await this.externalResourceManager.processExternalResource(src, type, externalHashing.fetchExternal);
+		const result = await this.externalResourceManager.processExternalResource(
+			src,
+			type,
+			externalHashing.fetchExternal,
+		);
 
 		// If we have content, generate hash from it
 		if (result.content !== undefined) {
 			try {
 				const hash = await generateHash(result.content, this.options.hashAlgorithm);
 				return { hash };
-			}
-			catch {
+			} catch {
 				return {};
 			}
 		}
@@ -1026,8 +1055,7 @@ export class CSPProcessor {
 		try {
 			const hash = await generateHash(src, this.options.hashAlgorithm);
 			return { hash };
-		}
-		catch {
+		} catch {
 			return {};
 		}
 	}
@@ -1038,16 +1066,31 @@ export class CSPProcessor {
 	private isLocalResource(source: string): boolean {
 		// Simple check for local resources
 		// This could be enhanced with more sophisticated local resource detection
-		return source.startsWith('/') || source.startsWith('./') || source.startsWith('../') || !source.includes('://');
+		return (
+			source.startsWith('/') ||
+			source.startsWith('./') ||
+			source.startsWith('../') ||
+			!source.includes('://')
+		);
 	}
 
 	/**
 	 * Add integrity attribute to external source
 	 */
 	private addIntegrityAttribute(element: ChildNode, hash: string): void {
-		if ((element.type === ElementType.Tag || element.type === ElementType.Script || element.type === ElementType.Style) && 'attribs' in element) {
+		if (
+			(element.type === ElementType.Tag ||
+				element.type === ElementType.Script ||
+				element.type === ElementType.Style) &&
+			'attribs' in element
+		) {
 			const tagElement = element;
-			if (tagElement.name === 'script' || tagElement.name === 'style' || tagElement.name === 'img' || tagElement.name === 'link') {
+			if (
+				tagElement.name === 'script' ||
+				tagElement.name === 'style' ||
+				tagElement.name === 'img' ||
+				tagElement.name === 'link'
+			) {
 				tagElement.attribs.integrity = `${this.options.hashAlgorithm}-${hash}`;
 			}
 		}
