@@ -16,7 +16,7 @@ Do **not** reopen these unless something is broken:
 | Lint | **OxLint** + **oxfmt** (not type-aware yet) | Same oxc family as obuild. Type-aware lint needs TypeScript 7 / `oxlint-tsgolint`. |
 | Markdown | **markdownlint-cli2** | Linter. oxfmt can wrap Markdown via bundled Prettier, but that is not a lint replacement and native Markdown formatting is still unshipped — keep ignoring `*.md` in oxfmt. |
 | Spelling | **cspell** | Root `pnpm spell`; CI runs it. |
-| Release | Deferred (Monup is the likely replacement) | Do not wire npm/JSR publish until packages are ready. Do not reintroduce bumpp/changelogithub. |
+| Release | **Monup** (`pnpm version`, `pnpm changelog`; CI `release.yml` dry-run by default) | Local version/changelog for review. Do not flip the workflow to a real publish until the packages are ready. Do not reintroduce bumpp/changelogithub. |
 | TypeScript | **6.0.x** (not 7) | Last JS-based compiler; `stableTypeOrdering` + no `baseUrl` for TS 7. 7.0 is still `tsgo`. |
 | Dual-publish | npm `dist` + JSR source (`typed-directives` first) | See [`docs/publishing.md`](publishing.md). |
 
@@ -30,16 +30,16 @@ Do **not** merge `shared` into `core`, merge `cli` into `unplugin`, add `@csp-pl
 
 `pnpm build` is the four-package baseline. `pnpm build:all` also compiles cli + unplugin so their export maps fail in CI; their product tests stay out of `pnpm test`. `packages/e2e-tests/test-app` is a workspace member (`@csp-plugins/e2e-test-app`).
 
-## Reintroduce soon (stripped leftovers)
+## Restored orchestration (done before product Areas 1–5)
 
-Do this on the new product branch **before** first publish. Do not treat the cleanup commit as dropping these for good.
+These were stripped in the cleanup commit and restored on the new `main` line before first publish:
 
-| Restore | How | Why |
-| --- | --- | --- |
-| Unit-test coverage | Vitest coverage (`@vitest/coverage-v8` or the then-current provider) + **integrated** CI reports (GitHub Actions / similar). Not Codecov. | Core libraries need published coverage. |
-| API docs | TypeDoc or equivalent, starting with `@csp-plugins/typed-directives` | The pre-monorepo package shipped TypeDoc HTML; restore that surface. Keep the existing `packages/typed-directives/CHANGELOG.md` (csp-typed-directives 1.x history). |
-| Contributor list | Automate inclusion (all-contributors **or** a GitHub-native equivalent) | No hand-maintained empty list. |
-| Release automation | Monup (version → changelog → npm/JSR → GitHub). Local `version`/`changelog`, CI publish. | Replaces the deleted copy-pasted `scripts/release.ts` / `changelog.ts`. |
+| Restore | How |
+| --- | --- |
+| Unit-test coverage | Vitest `@vitest/coverage-v8`. `pnpm test:coverage` writes Cobertura + HTML + JSON. CI (Node 24) uploads the report with `actions/upload-code-coverage` and a job summary. Not Codecov. |
+| API docs | TypeDoc for `@csp-plugins/typed-directives` (`pnpm docs:api` → `api-docs/`). `.github/workflows/docs.yml` deploys GitHub Pages from `main`. Keep `packages/typed-directives/CHANGELOG.md`. |
+| Contributor list | GitHub-native: `scripts/contributors.ts` reads the contributors API and writes `CONTRIBUTORS.md` plus the marked README block. `.github/workflows/contributors.yml` refreshes it on `main`. |
+| Release automation | Monup config + gated `release.yml`. Local `pnpm exec monup version` / `changelog` once `@monup/cli` publishes rewritten deps (`0.3.0` still has `catalog:` / `workspace:*`). |
 
 ## Goal
 

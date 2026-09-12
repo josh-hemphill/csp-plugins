@@ -16,13 +16,19 @@ pnpm typecheck
 pnpm lint
 pnpm fmt:check
 pnpm test
+pnpm test:coverage
+pnpm docs:api
 ```
 
 | Script | What it does |
 | --- | --- |
 | `pnpm build` | typed-directives, core, shared, basic-fscache |
 | `pnpm build:all` | those four plus cli and unplugin (CI uses this) |
-| `pnpm test` | Vitest unit tests for typed-directives, core, and basic-fscache |
+| `pnpm test` | Vitest unit tests for typed-directives, core, basic-fscache, and `scripts/` |
+| `pnpm test:coverage` | same tests with V8 coverage (Cobertura + HTML + JSON) |
+| `pnpm docs:api` | TypeDoc HTML for `@csp-plugins/typed-directives` |
+| `pnpm contributors` | refresh `CONTRIBUTORS.md` and the README block from the GitHub API |
+| `pnpm exec monup version` / `changelog` | Monup local version bump and changelog, once `@monup/cli` is installable |
 | `pnpm lint` | OxLint with `--deny-warnings` |
 | `pnpm lint:markdown` | markdownlint-cli2 (check; `lint:markdown:fix` writes) |
 | `pnpm spell` | cspell |
@@ -48,9 +54,9 @@ A useful report includes the package involved (`@csp-plugins/core`, unplugin, CL
 1. Open against this repository (`josh-hemphill/csp-plugins`).
 2. Match the styleguides below. Prefer named exports.
 3. Add or update Vitest tests next to the code you change.
-4. Wait for CI (`build:all`, typecheck, lint, markdownlint, cspell, fmt:check, test) to pass. If a check fails for a reason unrelated to your change, say so on the PR.
+4. Wait for CI (`build:all`, typecheck, lint, markdownlint, cspell, fmt:check, test; Node 24 also runs coverage and TypeDoc) to pass. If a check fails for a reason unrelated to your change, say so on the PR.
 
-We intend to **automate contributor inclusion** (all-contributors or a GitHub-native equivalent) before the first public release. Do not add a hand-maintained contributors file until that is wired.
+The [contributors list](../CONTRIBUTORS.md) is generated from GitHub's contributors API on pushes to `main`. Do not hand-edit that file or the marked block in the root README.
 
 ## Styleguides
 
@@ -80,7 +86,7 @@ describe('a dog', () => {
 
 ### Documentation
 
-Use Markdown. Package READMEs describe the public API; [`docs/publishing.md`](../docs/publishing.md) covers npm vs JSR. TypeDoc HTML for typed-directives will be restored before publish. Do not import `.ts` files from the npm `dist` packages.
+Use Markdown. Package READMEs describe the public API; [`docs/publishing.md`](../docs/publishing.md) covers npm vs JSR. TypeDoc HTML for typed-directives is generated with `pnpm docs:api` and deployed to GitHub Pages from `main`. Do not import `.ts` files from the npm `dist` packages.
 
 ## Working on core packages
 

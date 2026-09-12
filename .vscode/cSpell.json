@@ -4,6 +4,7 @@
 	"words": [
 		"bumpp",
 		"changelogithub",
+		"cobertura",
 		"Delineators",
 		"Deno",
 		"domhandler",
@@ -14,6 +15,7 @@
 		"esnext",
 		"fontobject",
 		"fscache",
+		"hemphill",
 		"htmlparser",
 		"iife",
 		"jsr",
@@ -55,6 +57,7 @@
 		"**/CHANGELOG.md",
 		"**/node_modules/**",
 		"**/dist/**",
-		"**/coverage/**"
+		"**/coverage/**",
+		"**/api-docs/**"
 	]
 }

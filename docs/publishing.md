@@ -31,6 +31,21 @@ Workspace packages consume each other through `workspace:*` and the npm export m
 
 `@csp-plugins/core` stays npm-only until htmlparser2 and Node builtins have an explicit JSR dependency story.
 
+## Release (Monup)
+
+Version and changelog are meant to stay local so they can be reviewed before anything is published:
+
+```shell
+pnpm exec monup version
+pnpm exec monup changelog
+```
+
+Config lives in [`monup.config.ts`](../monup.config.ts). Git tags use the package strategy; `push` is off so a local run does not update the remote until you push the commit yourself.
+
+CI publish is [`.github/workflows/release.yml`](../.github/workflows/release.yml): manual `workflow_dispatch`, dry-run by default. Do not switch that workflow to a real npm/JSR publish until the packages are ready. `pnpm publish:jsr:dry` remains the JSR graph check.
+
+**Blocker:** `@monup/cli@0.3.0` is on npm, but its tarball still lists `catalog:` and `workspace:*` dependencies, so it cannot be installed into this workspace yet. Keep the config and workflow; add `@monup/cli` / `@monup/options` to the `dev` catalog after a publish that rewrites those specifiers.
+
 ## Type-aware OxLint
 
 OxLint is the workspace linter. `--type-aware` / `oxlint-tsgolint` needs TypeScript 7 (`tsgo`). Stay on TypeScript 6 + `tsc --noEmit` until the compiler port is the workspace `typescript` package.

@@ -10,10 +10,13 @@ node_modules/
 dist/
 *.tgz
 
-# Coverage (reintroduce Vitest coverage reports soon; keep this ignore)
+# Coverage
 coverage/
 *.lcov
 .nyc_output
+
+# Generated TypeDoc HTML (CI deploys this to GitHub Pages)
+api-docs/
 
 # Caches
 *.tsbuildinfo
