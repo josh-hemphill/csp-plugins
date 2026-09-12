@@ -35,10 +35,6 @@ import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
 import { PostBuildDetector } from '@csp-plugins/shared/post-build-detector';
 ```
 
-## Documentation
-
-  - **[Manifest Caching Strategy](./MANIFEST_CACHING_STRATEGY.md)** - Comprehensive guide to managing manifest caching and cleanup
-
 ## Dependencies
 
 This package has minimal dependencies to avoid pulling in unnecessary code:

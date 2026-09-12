@@ -284,7 +284,7 @@ csp-cli --log-level debug dist/
 
 ## Contributing
 
-See the main [CONTRIBUTORS.md](../../CONTRIBUTORS.md) file for contribution guidelines.
+See the main [CONTRIBUTING.md](../../.github/CONTRIBUTING.md) file for contribution guidelines.
 
 ## License
 

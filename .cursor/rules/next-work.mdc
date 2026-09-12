@@ -1,0 +1,12 @@
+---
+description: Deferred CSP product work (strict defaults, build-time HTML, host adapters)
+alwaysApply: true
+---
+
+# Deferred product plan
+
+Do not start strict-CSP defaults, Vite HTML injection, hash-prefix contract changes, or hosting adapters unless the user explicitly begins that work.
+
+The full stacked plan, pseudo-code, and conflict map live in `docs/next-work.md`. Re-read that file first when this work starts.
+
+Baseline already in progress: workspace install, Node 22/24/26 + pnpm 12 pins, TypeScript 6, OxLint + oxfmt, `@csp-plugins/typed-directives` + `@csp-plugins/core` building and tested. Do not merge `shared` into `core`, do not add a `headers` or `adapters` package, and do not put source on npm `exports` unless the user explicitly begins that work.

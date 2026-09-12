@@ -1,6 +1,6 @@
 ---
 name: "\U0001F680 Feature Request"
-about: I have an idea for Vite-Plugin-Csp
+about: I have an idea for csp-plugins
 title: '[Enhance]: %s'
 labels: [feature]
 assignees: 'josh-hemphill'
@@ -8,7 +8,7 @@ assignees: 'josh-hemphill'
 
 <!--
 
-Have you read Vite-Plugin-Csp's Code of Conduct? By filing an Issue, you are expected to comply with it, including treating everyone with respect: https://github.com/josh-hemphill/vite-plugin-csp/.github/CODE_OF_CONDUCT.md
+Have you read this repository's Code of Conduct? By filing an Issue, you are expected to comply with it, including treating everyone with respect: https://github.com/josh-hemphill/csp-plugins/blob/main/.github/CODE_OF_CONDUCT.md
 
 -->
 

@@ -8,14 +8,14 @@ assignees: 'josh-hemphill'
 
 <!--
 
-Have you read Vite-Plugin-Csp's Code of Conduct? By filing an Issue, you are expected to comply with it, including treating everyone with respect: https://github.com/josh-hemphill/vite-plugin-csp/.github/CODE_OF_CONDUCT.md
+Have you read this repository's Code of Conduct? By filing an Issue, you are expected to comply with it, including treating everyone with respect: https://github.com/josh-hemphill/csp-plugins/blob/main/.github/CODE_OF_CONDUCT.md
 
 -->
 
 ### Prerequisites
 
   * [ ] Reproduced the problem in a sandbox or repo: <https://codepen.io>
-  * [ ] Checked that your issue isn't already filed: <https://github.com/issues?utf8=✓&q=is%3Aissue+repo%3Ajosh-hemphill/vite-plugin-csp>
+  * [ ] Checked that your issue isn't already filed: <https://github.com/josh-hemphill/csp-plugins/issues>
 
 ### Description
 

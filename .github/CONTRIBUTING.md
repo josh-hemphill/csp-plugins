@@ -1,212 +1,87 @@
-# Contributing to vite-plugin-csp
+# Contributing to csp-plugins
 
-👍🎉 First off, thanks for taking the time to contribute! 🎉👍
+Thanks for contributing. This is a pnpm 12 TypeScript monorepo. The unpublished product plan lives in [`docs/next-work.md`](../docs/next-work.md) — do not start strict-CSP defaults, Vite HTML injection, hash-prefix contract changes, or hosting adapters unless that document is explicitly picked up.
 
-The following is a set of guidelines for contributing. Since these are mostly guidelines, not rules, use your best judgment; and feel free to propose changes to this document in a pull request.
+This project follows [the repository's code of conduct](CODE_OF_CONDUCT.md). Report unacceptable behavior to <dev@joshuahemphill.com>.
 
-### Table Of Contents
+## Local setup
 
-[Code of Conduct](#code-of-conduct)
+Requirements are in the root [`README.md`](../README.md): Node.js 22.13+ (local `.node-version` is 24), pnpm 12.4.1 via `packageManager`.
 
-[How Can I Contribute?](#how-can-i-contribute)
+```shell
+corepack enable
+pnpm install
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm fmt:check
+pnpm test
+```
 
-  - [Reporting Bugs](#reporting-bugs)
-  - [Suggesting Enhancements](#suggesting-enhancements)
-  - [Your First Code Contribution](#your-first-code-contribution)
-  - [Pull Requests](#pull-requests)
+| Script | What it does |
+| --- | --- |
+| `pnpm build` | typed-directives, core, shared, basic-fscache |
+| `pnpm build:all` | those four plus cli and unplugin (CI uses this) |
+| `pnpm test` | Vitest unit tests for typed-directives, core, and basic-fscache |
+| `pnpm lint` | OxLint with `--deny-warnings` |
+| `pnpm lint:markdown` | markdownlint-cli2 (check; `lint:markdown:fix` writes) |
+| `pnpm spell` | cspell |
+| `pnpm fmt` / `pnpm fmt:check` | oxfmt (code; Markdown is linted, not formatted) |
+| `pnpm typecheck` | `tsc --noEmit` |
 
-[Styleguides](#styleguides)
+Add dependencies with a named catalog, not a default `catalog:` entry:
 
-  - [Git Commit Messages](#git-commit-messages)
-  - [JavaScript Styleguide](#javascript-styleguide)
-  - [Specs Styleguide](#specs-styleguide)
-  - [Documentation Styleguide](#documentation-styleguide)
+```shell
+pnpm add <pkg> --save-catalog-name <build|dev|logging|parsing|plugin-systems|test|types>
+```
 
-[What should I know before making PRs for core changes?](#what-should-i-know-before-making-prs-for-core-changes)
+Keep the package DAG: **typed-directives → core → (shared, basic-fscache) → (cli \| unplugin) → e2e**. Do not merge packages or add adapters until Area 5 of the product plan.
 
-### Code of Conduct
+## Bugs and enhancements
 
-This project and everyone participating in it is governed by [the repository's code of conduct](../CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to <dev@joshuahemphill.com>.
+Search [existing issues](https://github.com/josh-hemphill/csp-plugins/issues) first. Use the [bug](ISSUE_TEMPLATE/bug_report.md) or [feature](ISSUE_TEMPLATE/feature_request.md) template.
 
-## How Can I Contribute?
+A useful report includes the package involved (`@csp-plugins/core`, unplugin, CLI, …), Node and pnpm versions, a minimal reproduction, the observed vs expected behavior, and a stack trace when something throws.
 
-### Reporting bugs
+## Pull requests
 
-This section guides you through submitting a bug report for vite-plugin-csp. Following these guidelines helps maintainers and the community understand your report 📝, reproduce the behavior 💻, and find related reports 🔎.
+1. Open against this repository (`josh-hemphill/csp-plugins`).
+2. Match the styleguides below. Prefer named exports.
+3. Add or update Vitest tests next to the code you change.
+4. Wait for CI (`build:all`, typecheck, lint, markdownlint, cspell, fmt:check, test) to pass. If a check fails for a reason unrelated to your change, say so on the PR.
 
-Before creating bug reports, please check [this list](#before-submitting-a-bug-report) as you might find out that you don't need to create one. When you are creating a bug report, please [include as many details as possible](#how-do-i-submit-a-good-bug-report). Fill out [the required template](https://github.com/josh-hemphill/vite-plugin-csp/.github/.github/ISSUE_TEMPLATE/bug_report.md), the information it asks for helps us resolve issues faster.
-
-#### Before Submitting A Bug Report
-
-  - **Determine** the error or issue happens inside vite-plugin-csp code, and is not an expected error in response to user input.
-  - **Perform** a [cursory search](https://github.com/issues?utf8=✓&q=is%3Aissue+repo%3Ajosh-hemphill/vite-plugin-csp+label%3Abug) to see if the problem has already been reported. If it has and the issue is still open, add a comment to the existing issue instead of opening a new one.
-
-#### How Do I Submit A (Good) Bug Report?
-
-Explain the problem and include additional details to help maintainers reproduce the problem:
-
-  - **Use a clear and descriptive title** for the issue to identify the problem.
-  - **Describe the exact steps which reproduce the problem** in as many details as possible. For example, start by explaining how you invoked vite-plugin-csp, e.g. which function exactly you used, or how you imported it otherwise. When listing steps, **don't just say what you did, but explain how you did it**. For example, if you used an internal function, don't just say you used it, provide what data you passed it, and if/how it was passed back into other vite-plugin-csp functions.
-  - **Provide specific examples to demonstrate the steps**. Include links to files or GitHub projects, or copy/pasteable snippets, which you use in those examples. If you're providing snippets in the issue, use [Markdown code blocks](https://help.github.com/articles/markdown-basics/#multiple-lines).
-  - **Describe the behavior you observed after following the steps** and point out what exactly is the problem with that behavior.
-  - **Explain which behavior you expected to see instead and why.**
-  - **If you're reporting that vite-plugin-csp errored out**, provide the whole stack trace in the issue in a [code block](https://help.github.com/articles/markdown-basics/#multiple-lines), a [file attachment](https://help.github.com/articles/file-attachments-on-issues-and-pull-requests/), or put it in a [gist](https://gist.github.com/) and provide link to that gist.
-  - **If the problem is related to performance or memory**, include a benchmark link with your report.
-  - **If the problem wasn't triggered by a specific action**, describe what you were doing before the problem happened and share more information using the guidelines below.
-
-Provide more context by answering these questions:
-
-  - **Can you reproduce the problem in [a sandbox](https://codepen.io)?**
-  - **Did the problem start happening recently** or was this always a problem?
-  - If the problem started happening recently, **can you reproduce the problem in an older version?** What's the most recent version in which the problem doesn't happen? You can download older versions from NPM or Deno.
-  - **Can you reliably reproduce the issue?** If not, provide details about how often the problem happens and under which conditions it normally happens.
-
-Include details about your configuration and environment:
-
-  - **Which version are you using?** You can get the exact version by looking in your `package.json` or in your Deno import.
-  - **What's the name and version of the OS you're using**?
-  - **Which other packages do you have installed?**
-
-### Suggesting Enhancements
-
-This section guides you through submitting an enhancement suggestion for vite-plugin-csp, including completely new features and minor improvements to existing functionality. Following these guidelines helps maintainers and the community understand your suggestion :pencil: and find related suggestions :mag_right:.
-
-Before creating enhancement suggestions, please check [this list](#before-submitting-an-enhancement-suggestion) as you might find out that you don't need to create one. When you are creating an enhancement suggestion, please [include as many details as possible](#how-do-i-submit-a-good-enhancement-suggestion). Fill in [the template](https://github.com/josh-hemphill/vite-plugin-csp/.github/blob/master/.github/ISSUE_TEMPLATE/feature_request.md), including the steps that you imagine you would take if the feature you're requesting existed.
-
-#### Before Submitting An Enhancement Suggestion
-
-  - **Perform** a [cursory search](https://github.com/issues?utf8=✓&q=is%3Aissue+repo%3Ajosh-hemphill/vite-plugin-csp+label%3Afeature) to see if the problem has already been reported. If it has and the issue is still open, add a comment to the existing issue instead of opening a new one.
-
-#### How Do I Submit A (Good) Enhancement Suggestion?
-
-Enhancement suggestions are tracked as [GitHub issues](https://guides.github.com/features/issues/). Create an issue on the repository and provide the following information:
-
-  - **Use a clear and descriptive title** for the issue to identify the suggestion.
-  - **Provide a step-by-step description of the suggested enhancement** in as many details as possible.
-  - **Provide specific examples to demonstrate the steps**. Include copy/pasteable snippets which you use in those examples, as [Markdown code blocks](https://help.github.com/articles/markdown-basics/#multiple-lines).
-  - **Describe the current behavior** and **explain which behavior you expected to see instead** and why.
-  - **Explain why this enhancement would be useful** to most users and isn't something that can or should be implemented as a separate package.
-  - **List some other places this exists.**
-  - **Which version are you using?** You can get the exact version by looking in your `package.json` or in your Deno import.
-  - **Specify the name and version of the platform you're using.**
-
-### Your First Code Contribution
-
-Unsure where to begin contributing to vite-plugin-csp? You can start by looking through these `good first issue` and `good second issue` issues:
-
-  - [Good first issues][good first issue] - issues which should only require a few lines of code, and a test or two.
-  - [Good second issues][good second issue] - issues which should be a bit more involved than `good first issue` issues.
-
-Both issue lists are sorted by total number of comments.
-While not perfect, number of comments is a reasonable proxy for impact a given change will have.
-
-#### Local development
-
-For instructions on how to setup and run development, see the following [Development Guide](https://github.com/josh-hemphill/vite-plugin-csp/docs/development.md)
-
-### Pull Requests
-
-The process described here has several goals:
-
-  - Maintain vite-plugin-csp's quality
-  - Fix problems that are important to users
-  - Engage the community in working toward the best possible vite-plugin-csp
-  - Enable a sustainable system for vite-plugin-csp's maintainers to review contributions
-
-Please follow these steps to have your contribution considered by the maintainers:
-
-1. Follow all instructions in [the template](PULL_REQUEST_TEMPLATE.md)
-2. Follow the [styleguides](#styleguides)
-3. After you submit your pull request, verify that all [status checks](https://help.github.com/articles/about-status-checks/)
-are passing <details><summary>What if the status checks are failing?</summary>
-If a status check is failing,
-and you believe that the failure is unrelated to your change,
-please leave a comment on the pull request explaining why you believe the failure is unrelated.
-A maintainer will re-run the status check for you.
-If we conclude that the failure was a false positive,
-then we will open an issue to track that problem with our status check suite.</details>
-
-While the prerequisites above must be satisfied prior to having your pull request reviewed,
-the reviewer(s) may ask you to complete additional design work, tests,
-or other changes before your pull request can be ultimately accepted.
+We intend to **automate contributor inclusion** (all-contributors or a GitHub-native equivalent) before the first public release. Do not add a hand-maintained contributors file until that is wired.
 
 ## Styleguides
 
-### Git Commit Messages
+### Git commit messages
 
-Use the dev dependency `commitizen` to walk you through writing good commit messages.
+Write a concise subject that explains **why**, not a file list. Conventional prefixes (`feat:`, `fix:`, `chore:`) are welcome when they fit.
 
-### JavaScript Styleguide
+### TypeScript and JavaScript
 
-All JavaScript code is linted with [ESLint](https://eslint.org/).
+Lint with [OxLint](https://oxc.rs/docs/guide/usage/linter). Format with [oxfmt](https://oxc.rs/docs/guide/usage/formatter) (tabs, width 3; YAML uses 2 spaces). Lint Markdown with [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2); oxfmt does not replace it. Spell-check with cspell. Prefer object spread over `Object.assign()`, inline named `export`s, and platform-agnostic code unless the file is already Node-only (CLI, cache, tests).
 
-  - Prefer the object spread operator (`{...anotherObj}`) to `Object.assign()`
-  - Inline `export`s with expressions whenever possible
+### Tests
 
-  ```js
-  // Use this:
-  export class ClassName {
-
-  }
-
-  // Instead of:
-  class ClassName {
-
-  }
-  export default ClassName
-  ```
-
-  - Place imports in the following order:
-    - Built in Node Modules (such as `path`)
-    - Local Modules (using relative paths)
-  - Place class properties in the following order:
-    - Class methods and properties (methods starting with `static`)
-    - Instance methods and properties
-  - Avoid platform-dependent code (e.g. `process`, `Deno`, `window`)
-
-### Specs Styleguide
-
-  - Include thoughtfully-worded, well-structured
-  [Jest](https://jestjs.io/) tests next to their dependant modules.
-  - Include integration, build, and platform tests under the `test/` directory.
-  - Treat `describe` as a noun or situation.
-  - Treat `it` as a statement about state or how an operation changes state.
-
-#### Example
+Use [Vitest](https://vitest.dev/). Colocate unit tests with the package they cover. Treat `describe` as a noun or situation and `it` as a statement about state.
 
 ```js
 describe('a dog', () => {
- it('barks',() => {
-  // spec here
-  describe('when the dog is happy',() =>{
-    it('wags its tail',() => {
-    // spec here
-    })
-  })
- })
-})
+	it('barks', () => {
+		describe('when the dog is happy', () => {
+			it('wags its tail', () => {
+				// spec here
+			});
+		});
+	});
+});
 ```
 
-### Documentation Styleguide
+### Documentation
 
-  - Use [Markdown](https://daringfireball.net/projects/markdown).
-  - Markdown is linted with
-  [MarkdownLint](https://github.com/DavidAnson/markdownlint-cli2)
-  in builds and in VsCode with
-  [the corresponding VsCode extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint)
-  - Reference methods and classes in markdown with the its JSDoc/TSDoc definition:
-    - Reference classes with `{typeof ClassName}`
-    - Reference class instances with `{ClassName}`
-    - Reference instance methods with `{ClassName['methodName']}`
-    - Reference class methods with `{(typeof ClassName)['methodName']}`
+Use Markdown. Package READMEs describe the public API; [`docs/publishing.md`](../docs/publishing.md) covers npm vs JSR. TypeDoc HTML for typed-directives will be restored before publish. Do not import `.ts` files from the npm `dist` packages.
 
-### What should I know before making PRs for core changes?
+## Working on core packages
 
-If you want to contribute to the core source code,
-the best way to get a feal for how the internals work,
-is to read over the jest tests that are in the same `src/lib` folder.
-Many of the internals are also exposed via named exports,
-so you can play around with individual components if you feel it would be helpful.
-
-It's also helpful to be familiar with regex and parsers,
-as well as some idea of what's available when keeping the code platform-agnostic.
+Read the Vitest files beside the source (`packages/typed-directives/tests`, `packages/core/tests`, `packages/basic-fscache`). Many internals are named exports, so you can exercise them in isolation. CSP work is mostly parsers and header composition — keep that platform-agnostic unless a package is explicitly Node-only.
