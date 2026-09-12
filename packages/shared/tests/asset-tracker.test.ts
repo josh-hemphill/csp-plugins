@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { CommonAssetTracker } from '../src/asset-tracker.ts';
 
 describe('CommonAssetTracker hash contract', () => {
+	it('defaults generateCsp to true and emitHeadersFile to csp-headers.json', () => {
+		const options = new CommonAssetTracker('vite').getOptions();
+		expect(options.generateCsp).toBe(true);
+		expect(options.emitHeadersFile).toBe('csp-headers.json');
+	});
+
 	it('awaits hashes before generateManifest and stores sha256-<base64>', async () => {
 		const tracker = new CommonAssetTracker('test');
 		tracker.trackAsset({

@@ -24,7 +24,7 @@ pnpm docs:api
 | --- | --- |
 | `pnpm build` | typed-directives, core, shared, basic-fscache |
 | `pnpm build:all` | those four plus cli and unplugin (CI uses this) |
-| `pnpm test` | Vitest unit tests for typed-directives, core, shared, basic-fscache, and `scripts/` |
+| `pnpm test` | Vitest unit tests for typed-directives, core, shared, basic-fscache, unplugin, and `scripts/` |
 | `pnpm test:coverage` | same tests with V8 coverage (Cobertura + HTML + JSON) |
 | `pnpm docs:api` | TypeDoc HTML for `@csp-plugins/typed-directives` |
 | `pnpm contributors` | refresh `CONTRIBUTORS.md` and the README block from the GitHub API |

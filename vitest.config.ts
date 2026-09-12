@@ -7,6 +7,7 @@ export default defineConfig({
 			'packages/core',
 			'packages/shared',
 			'packages/basic-fscache',
+			'packages/unplugin',
 			{
 				test: {
 					name: 'scripts',

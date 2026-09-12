@@ -15,7 +15,8 @@ export class CommonAssetTracker {
 		this.buildTool = buildTool;
 		this.options = {
 			trackAssets: true,
-			generateCsp: false,
+			generateCsp: true,
+			emitHeadersFile: 'csp-headers.json',
 			cspProcessorOptions: {},
 			manifestDir: '.csp-manifest',
 			devServer: false,

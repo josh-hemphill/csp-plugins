@@ -60,6 +60,8 @@ export interface CspPluginOptions {
 	trackAssets?: boolean;
 	/** Whether to generate CSP directives during build */
 	generateCsp?: boolean;
+	/** Write `CspDirectiveHeaders` JSON beside the build output. `false` skips the file. */
+	emitHeadersFile?: boolean | string;
 	/** CSP processor options */
 	cspProcessorOptions?: CSPProcessorOptions;
 	/** Output directory for manifest files */

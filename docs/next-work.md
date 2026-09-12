@@ -50,7 +50,7 @@ A developer can add one plugin (or one CLI invocation) and get a **strict** Cont
   - `@csp-plugins/typed-directives` already maps typed directives to `CspDirectiveHeaders`.
   - `@csp-plugins/core` already parses HTML, hashes/nonces, injects `<meta>`, and can hash externals.
   - CLI already writes `csp-headers.json`. Bundler plugins only write `.csp-manifest`.
-  - Plugins do **not** transform HTML (`generateCsp` is unused). Manifest hashes are often raw base64. Auto-manifest still allows `'unsafe-inline'`.
+  - Vite injects a CSP meta tag and writes `csp-headers.json`. Manifest hashes are `sha256-<base64>`. CLI auto-manifest still allows `'unsafe-inline'` until Area 4.
 
 ## Stack graph
 
@@ -121,6 +121,7 @@ interface CSPResult {
 
 ### Area 3: Build-time HTML + headers (Vite first)
 
+  - Status: **done on this line** — Vite `transformIndexHtml` injects the CSP meta tag, `generateCsp` defaults **true**, `emitHeadersFile` writes `csp-headers.json` beside `outDir`, and the unplugin Hello stub is gone.
   - Goal: `cspVitePlugin()` with no extra CLI step injects the CSP meta tag into built HTML and writes `csp-headers.json` next to output. `generateCsp` defaults **true**.
   - Depends on: Area 2
   - Out of scope: Webpack/Rollup/esbuild/Nuxt parity (follow-up PRs), SSR nonces, host-specific files
@@ -207,7 +208,5 @@ express  → middleware (req, res, next) => { res.set(headers); next() }
 
 ## Known bugs to absorb into the stack (do not “drive-by” before this plan)
 
-  - `CommonAssetTracker` hash generation is fire-and-forget; manifests can miss hashes.
-  - `packages/unplugin/src/index.ts` default export is still the unplugin starter stub.
-  - `generateCsp` currently defaults **false** in `packages/shared/src/asset-tracker.ts`; Area 3 wants Vite default **true**. Flip the contract in one place, not only the Vite wrapper.
+  - Asset-tracker hash races and Vite HTML injection are handled in Areas 1 and 3. Webpack/Rollup/esbuild HTML parity stays later.
   - Local rewrite history is **not** a fast-forward of `origin/latest` (published vite-plugin-csp 1.1.2).
