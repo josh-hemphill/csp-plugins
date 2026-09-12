@@ -3,55 +3,36 @@ name: CI
 on:
   push:
     branches:
+      - latest
       - main
-
   pull_request:
-    branches:
-      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16.x
-
-      - name: Setup
-        run: npm i -g @antfu/ni
-
-      - name: Install
-        run: nci
-
-      - name: Lint
-        run: nr lint
-
   test:
-    runs-on: ${{ matrix.os }}
-
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
     strategy:
-      matrix:
-        node: [14.x, 16.x]
-        os: [ubuntu-latest, windows-latest, macos-latest]
       fail-fast: false
-
+      matrix:
+        node:
+          - '22'
+          - '24'
+          - '26'
     steps:
-      - uses: actions/checkout@v3
-      - name: Set node ${{ matrix.node }}
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v7
+      - uses: pnpm/setup@v2
         with:
-          node-version: ${{ matrix.node }}
-
-      - name: Setup
-        run: npm i -g @antfu/ni
-
-      - name: Install
-        run: nci
-
-      - name: Build
-        run: nr build
-
-      - name: Test
-        run: nr test
+          runtime: node@${{ matrix.node }}
+          cache: true
+          require-lockfile: true
+      - run: pnpm run build:all
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm lint:markdown
+      - run: pnpm spell
+      - run: pnpm fmt:check
+      - run: pnpm test

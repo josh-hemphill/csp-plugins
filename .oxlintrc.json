@@ -1,0 +1,45 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"ignorePatterns": [
+		"**/dist/**",
+		"**/coverage/**",
+		"packages/cli/**",
+		"packages/e2e-tests/**",
+		"packages/unplugin/**"
+	],
+	"plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "vitest"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn"
+	},
+	"env": {
+		"builtin": true,
+		"es2024": true,
+		"node": true
+	},
+	"options": {
+		"typeAware": false,
+		"denyWarnings": true
+	},
+	"rules": {
+		"eqeqeq": "error",
+		"no-console": "off",
+		"no-debugger": "error",
+		"no-shadow": "off",
+		"no-underscore-dangle": "off",
+		"no-unused-vars": [
+			"error",
+			{
+				"argsIgnorePattern": "^_",
+				"caughtErrorsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_"
+			}
+		],
+		"import/no-unassigned-import": "off",
+		"typescript/no-explicit-any": "error",
+		"unicorn/consistent-function-scoping": "off",
+		"vitest/no-conditional-expect": "off",
+		"vitest/require-mock-type-parameters": "off",
+		"vitest/require-to-throw-message": "off"
+	}
+}

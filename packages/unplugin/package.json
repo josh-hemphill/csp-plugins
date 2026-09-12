@@ -1,108 +1,74 @@
 {
 	"name": "@csp-plugins/unplugin",
-	"type": "module",
 	"version": "0.1.0",
 	"description": "Individual build tool plugins for CSP asset tracking and dev server integration",
+	"keywords": [
+		"CSP",
+		"CSPs",
+		"asset-tracking",
+		"content-security-policy",
+		"dev-server",
+		"directive",
+		"esbuild",
+		"generate",
+		"header",
+		"nuxt",
+		"rollup",
+		"security",
+		"transform",
+		"unplugin",
+		"vite",
+		"webpack"
+	],
+	"homepage": "https://github.com/josh-hemphill/csp-plugins/tree/main/packages/unplugin#readme",
+	"bugs": {
+		"url": "https://github.com/josh-hemphill/csp-plugins/issues"
+	},
 	"license": "MIT",
-	"homepage": "https://github.com/josh-hemphill/csp-plugins/packages/unplugin-csp#readme",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/josh-hemphill/csp-plugins.git"
 	},
-	"bugs": {
-		"url": "https://github.com/josh-hemphill/csp-plugins/issues"
-	},
-	"keywords": [
-		"CSP",
-		"CSPs",
-		"content-security-policy",
-		"header",
-		"security",
-		"generate",
-		"directive",
-		"unplugin",
-		"vite",
-		"webpack",
-		"rollup",
-		"esbuild",
-		"nuxt",
-		"transform",
-		"asset-tracking",
-		"dev-server"
-	],
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.mjs",
-			"require": "./dist/index.cjs"
-		},
-		"./vite": {
-			"types": "./dist/vite.d.ts",
-			"import": "./dist/vite.mjs",
-			"require": "./dist/vite.cjs"
-		},
-		"./webpack": {
-			"types": "./dist/webpack.d.ts",
-			"import": "./dist/webpack.mjs",
-			"require": "./dist/webpack.cjs"
-		},
-		"./rollup": {
-			"types": "./dist/rollup.d.ts",
-			"import": "./dist/rollup.mjs",
-			"require": "./dist/rollup.cjs"
-		},
-		"./esbuild": {
-			"types": "./dist/esbuild.d.ts",
-			"import": "./dist/esbuild.mjs",
-			"require": "./dist/esbuild.cjs"
-		},
-		"./nuxt": {
-			"types": "./dist/nuxt.d.ts",
-			"import": "./dist/nuxt.mjs",
-			"require": "./dist/nuxt.cjs"
-		},
-		"./types": {
-			"types": "./dist/types.d.ts",
-			"import": "./dist/types.mjs",
-			"require": "./dist/types.cjs"
-		},
-		"./*": "./*"
-	},
-	"main": "dist/index.cjs",
-	"module": "dist/index.mjs",
-	"types": "dist/index.d.ts",
-	"typesVersions": {
-		"*": {
-			"*": [
-				"./dist/*",
-				"./*"
-			]
-		}
-	},
-	"bin": {
-		"csp-unplugin-cli": "./dist/cli.mjs"
-	},
 	"files": [
 		"dist"
 	],
+	"type": "module",
+	"main": "./dist/index.mjs",
+	"types": "./dist/index.d.mts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.mts",
+			"import": "./dist/index.mjs"
+		},
+		"./vite": {
+			"types": "./dist/vite.d.mts",
+			"import": "./dist/vite.mjs"
+		},
+		"./webpack": {
+			"types": "./dist/webpack.d.mts",
+			"import": "./dist/webpack.mjs"
+		},
+		"./rollup": {
+			"types": "./dist/rollup.d.mts",
+			"import": "./dist/rollup.mjs"
+		},
+		"./esbuild": {
+			"types": "./dist/esbuild.d.mts",
+			"import": "./dist/esbuild.mjs"
+		},
+		"./nuxt": {
+			"types": "./dist/nuxt.d.mts",
+			"import": "./dist/nuxt.mjs"
+		}
+	},
 	"scripts": {
 		"build": "obuild",
 		"dev": "obuild --watch",
-		"lint": "eslint .",
+		"lint": "oxlint .",
 		"play": "pnpm -C playground run dev",
 		"prepublishOnly": "pnpm run build",
-		"test": "pnpm run \"/test:/\"",
-		"test::unit": "vitest run",
-		"test::lint": "eslint src/**/*.ts",
-		"test::markdown": "markdownlint-cli2 \"**/*.md\" \"#**/node_modules\" \"#CHANGELOG.md\" --config ../../.markdownlint.json",
-		"test::spelling": "cspell --config ../../.vscode/cSpell.json \"{README.md,.github/*.md,src/**/*.ts,docs/**/*.md}\"",
+		"test": "vitest run",
 		"watch:test": "vitest run --watch"
-	},
-	"peerDependencies": {
-		"esbuild": "^0.14.0 || ^0.15.0 || ^0.16.0 || ^0.17.0 || ^0.18.0 || ^0.19.0",
-		"rollup": "^2.0.0 || ^3.0.0 || ^4.0.0",
-		"vite": "^4.0.0 || ^5.0.0",
-		"webpack": "^4.0.0 || ^5.0.0"
 	},
 	"dependencies": {
 		"@csp-plugins/basic-fscache": "workspace:*",
@@ -112,19 +78,19 @@
 		"unplugin": "catalog:plugin-systems"
 	},
 	"devDependencies": {
-		"@antfu/eslint-config": "catalog:dev",
 		"@types/node": "catalog:types",
-		"bumpp": "catalog:dev",
-		"cspell": "catalog:dev",
 		"esbuild": "catalog:plugin-systems",
-		"eslint": "catalog:dev",
-		"gh-pages": "catalog:dev",
-		"markdownlint-cli2": "catalog:dev",
+		"oxlint": "catalog:dev",
 		"rollup": "catalog:plugin-systems",
 		"typescript": "catalog:build",
 		"vite": "catalog:plugin-systems",
 		"vitest": "catalog:test",
-		"webpack": "catalog:plugin-systems",
-		"zx": "catalog:dev"
+		"webpack": "catalog:plugin-systems"
+	},
+	"peerDependencies": {
+		"esbuild": "^0.28.0",
+		"rollup": "^4.0.0",
+		"vite": "^8.0.0",
+		"webpack": "^5.0.0"
 	}
 }

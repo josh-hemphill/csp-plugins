@@ -1,19 +1,16 @@
 {
 	"compilerOptions": {
 		"target": "es2022",
-		"lib": [
-			"esnext"
-		],
-		"baseUrl": ".",
+		"lib": ["esnext"],
 		"rootDir": ".",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"resolveJsonModule": true,
-		"types": [
-			"vitest",
-			"node"
-		],
+		"types": ["vitest", "node"],
 		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true,
+		"noUncheckedSideEffectImports": true,
+		"stableTypeOrdering": true,
 		"strict": true,
 		"strictFunctionTypes": true,
 		"strictNullChecks": true,
@@ -27,16 +24,17 @@
 		"skipDefaultLibCheck": true,
 		"skipLibCheck": true
 	},
-	"include": [
-		"packages",
-		"scripts"
-	],
+	"include": ["packages"],
 	"exclude": [
 		"node_modules",
 		"**/**/*.stories.tsx",
 		"**/**/*.md",
 		"**/dist",
 		"packages/.test",
-		"packages/_docs"
+		"packages/_docs",
+		"packages/cli",
+		"packages/e2e-tests",
+		"packages/unplugin",
+		"scripts"
 	]
 }

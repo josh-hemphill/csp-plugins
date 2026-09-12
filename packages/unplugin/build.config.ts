@@ -1,4 +1,5 @@
 import { defineBuildConfig } from 'obuild/config';
+
 import oxcConfig from '../../scripts/oxc.default.ts';
 import packageJson from '../typed-directives/package.json' with { type: 'json' };
 
@@ -14,16 +15,6 @@ export default defineBuildConfig({
 		{
 			type: 'transform',
 			input: './src/',
-			oxc: {
-				...oxcConfig,
-				inject: {
-					VERSION: version,
-				},
-			},
-		},
-		{
-			type: 'transform',
-			input: './src/cli.ts',
 			oxc: {
 				...oxcConfig,
 				inject: {

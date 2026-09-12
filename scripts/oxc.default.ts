@@ -1,8 +1,7 @@
 export default {
 	sourcemap: true,
 	typescript: {
-		declaration: {
-		},
+		declaration: {},
 		rewriteImportExtensions: true,
 	},
 };

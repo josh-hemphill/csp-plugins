@@ -1,4 +1,5 @@
 import { defineBuildConfig } from 'obuild/config';
+
 import oxcConfig from '../../scripts/oxc.default.ts';
 import packageJson from '../typed-directives/package.json' with { type: 'json' };
 
@@ -10,14 +11,16 @@ declare global {
 }
 
 export default defineBuildConfig({
-	entries: [{
-		type: 'transform',
-		input: './src/',
-		oxc: {
-			...oxcConfig,
-			define: {
-				VERSION: `"${version}"`,
+	entries: [
+		{
+			type: 'transform',
+			input: './src/',
+			oxc: {
+				...oxcConfig,
+				define: {
+					VERSION: `"${version}"`,
+				},
 			},
 		},
-	}],
+	],
 });

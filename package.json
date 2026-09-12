@@ -1,65 +1,75 @@
 {
 	"name": "@csp-plugins/monorepo",
-	"type": "module",
 	"version": "1.0.0",
 	"private": true,
-	"packageManager": "pnpm@10.22.0",
 	"description": "A collection of plugins and packages with shared functionality for creating and managing CSP tags, headers, and directives",
+	"keywords": [
+		"CSP",
+		"CSPs",
+		"directive",
+		"generate",
+		"header",
+		"html",
+		"plugin",
+		"security"
+	],
+	"homepage": "https://github.com/josh-hemphill/csp-plugins#readme",
+	"bugs": {
+		"url": "https://github.com/josh-hemphill/csp-plugins/issues"
+	},
+	"license": "MIT",
 	"author": {
 		"name": "Joshua Hemphill",
 		"email": "dev@joshuahemphill.com",
 		"url": "https://joshuahemphill.com"
 	},
-	"license": "MIT",
-	"homepage": "https://github.com/josh-hemphill/csp-plugins#readme",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/josh-hemphill/csp-plugins.git"
 	},
-	"bugs": {
-		"url": "https://github.com/josh-hemphill/csp-plugins/issues"
-	},
-	"keywords": [
-		"CSP",
-		"CSPs",
-		"plugin",
-		"directive",
-		"html",
-		"header",
-		"security",
-		"generate"
-	],
-	"main": "index.js",
+	"type": "module",
 	"scripts": {
-		"dev": "pnpm run build -- --watch",
-		"build": "pnpm run --recursive build",
-		"log": "conventional-changelog -p angular -i CHANGELOG.md -s",
-		"lint-fix": "pnpm run \"/lint:/\"",
-		"lint:typescript": "eslint src --ext .ts --fix",
-		"lint:markdown": "markdownlint-cli2-fix \"**/*.md\" \"#**/node_modules\" \"#CHANGELOG.md\" --config .markdownlint.json",
+		"build": "pnpm --filter @csp-plugins/typed-directives --filter @csp-plugins/core --filter @csp-plugins/shared --filter @csp-plugins/basic-fscache run build",
+		"build:all": "pnpm --filter @csp-plugins/typed-directives --filter @csp-plugins/core --filter @csp-plugins/shared --filter @csp-plugins/basic-fscache --filter @csp-plugins/cli --filter @csp-plugins/unplugin run build",
 		"test": "vitest run -c vitest.config.ts",
-		"test:ql": "pnpm run \"/test:ql:/\"",
-		"test:ql:lint": "pnpm run -r test::lint",
-		"test:ql:markdown": "pnpm run -r test::markdown",
-		"test:ql:spelling": "pnpm run -r test::spelling",
-		"watch:test": "pnpm run -r watch::test"
+		"test:typed-directives": "pnpm --filter @csp-plugins/typed-directives run test::unit",
+		"test:core": "pnpm --filter @csp-plugins/core run test::unit",
+		"lint": "oxlint --deny-warnings .",
+		"lint:fix": "oxlint --fix .",
+		"fmt": "oxfmt .",
+		"fmt:check": "oxfmt --check .",
+		"lint:markdown": "markdownlint-cli2 \"**/*.md\" \"#**/node_modules\" \"#**/CHANGELOG.md\" --config .markdownlint.json",
+		"lint:markdown:fix": "markdownlint-cli2 --fix \"**/*.md\" \"#**/node_modules\" \"#**/CHANGELOG.md\" --config .markdownlint.json",
+		"spell": "cspell --config .vscode/cSpell.json --no-progress \"**/*.{ts,md}\"",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"publish:jsr:dry": "pnpm --filter @csp-plugins/typed-directives exec jsr publish --dry-run --allow-dirty",
+		"watch:test": "vitest watch -c vitest.config.ts"
 	},
 	"devDependencies": {
-		"@antfu/eslint-config": "catalog:dev",
 		"@types/node": "catalog:types",
-		"@vitest/coverage-v8": "catalog:test",
-		"bumpp": "catalog:dev",
-		"changelogithub": "catalog:dev",
 		"cspell": "catalog:dev",
-		"eslint": "catalog:dev",
-		"gh-pages": "catalog:dev",
+		"jsr": "catalog:dev",
 		"markdownlint-cli2": "catalog:dev",
-		"mock-fs": "catalog:dev",
 		"obuild": "catalog:build",
-		"tsx": "catalog:dev",
-		"typedoc": "catalog:build",
+		"oxfmt": "catalog:dev",
+		"oxlint": "catalog:dev",
 		"typescript": "catalog:build",
-		"vitest": "catalog:test",
-		"zx": "catalog:dev"
-	}
+		"vitest": "catalog:test"
+	},
+	"devEngines": {
+		"packageManager": {
+			"name": "pnpm",
+			"version": "12.4.1",
+			"onFail": "download"
+		},
+		"runtime": {
+			"name": "node",
+			"version": ">=22.13.0",
+			"onFail": "error"
+		}
+	},
+	"engines": {
+		"node": ">=22.13.0"
+	},
+	"packageManager": "pnpm@12.4.1"
 }

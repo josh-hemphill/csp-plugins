@@ -5,6 +5,9 @@
 		"indent": 2,
 		"start_indented": true
 	},
+	"MD010": {
+		"code_blocks": false
+	},
 	"MD013": false,
 	"MD030": {
 		"ol_multi": 1,
@@ -13,5 +16,7 @@
 		"ul_single": 1
 	},
 	"MD033": false,
-	"MD041": false
+	"MD034": false,
+	"MD041": false,
+	"MD060": false
 }

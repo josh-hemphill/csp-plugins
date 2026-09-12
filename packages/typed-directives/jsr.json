@@ -1,0 +1,12 @@
+{
+	"name": "@csp-plugins/typed-directives",
+	"version": "0.1.0",
+	"license": "MIT",
+	"exports": {
+		".": "./src/index.ts",
+		"./csp.types": "./src/csp.types.ts"
+	},
+	"publish": {
+		"include": ["LICENSE", "README.md", "src/**/*.ts"]
+	}
+}

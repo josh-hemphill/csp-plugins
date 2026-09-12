@@ -4,16 +4,13 @@
 		{
 			"type": "shell",
 			"command": "pnpm",
-			"args": [
-				"run",
-				"build"
-			],
+			"args": ["run", "build"],
 			"group": {
 				"kind": "build",
 				"isDefault": true
 			},
 			"problemMatcher": [],
-			"label": "pnpm: build",
+			"label": "pnpm: build"
 		}
 	]
 }
