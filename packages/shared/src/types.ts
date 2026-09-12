@@ -1,4 +1,4 @@
-import type { CSPProcessorOptions } from '@csp-plugins/core';
+import type { CSPProcessorOptions, HashSource } from '@csp-plugins/core';
 
 /**
  * Asset information tracked during build
@@ -12,8 +12,8 @@ export interface TrackedAsset {
 	type: 'script' | 'style' | 'image' | 'font' | 'media' | 'document' | 'worker' | 'other';
 	/** Whether this is an inline asset */
 	inline: boolean;
-	/** Content hash if available */
-	hash?: string;
+	/** Content hash (`sha256|sha384|sha512-<base64>`) once hashing has settled */
+	hash?: HashSource;
 	/** MIME type if known */
 	mimeType?: string;
 	/** Source code if inline or accessible */
@@ -77,12 +77,14 @@ export interface CspPluginOptions {
  * Asset tracker interface that all plugins implement
  */
 export interface AssetTracker {
-	/** Track a new asset */
-	trackAsset: (asset: Omit<TrackedAsset, 'timestamp' | 'buildTool'>) => void;
+	/** Track a new asset. Bundler hashes that are not CSP sources are ignored when source is present. */
+	trackAsset: (
+		asset: Omit<TrackedAsset, 'timestamp' | 'buildTool' | 'hash'> & { hash?: string },
+	) => void;
 	/** Get all tracked assets */
 	getAssets: () => TrackedAsset[];
-	/** Generate asset manifest */
-	generateManifest: (outputDir: string) => AssetManifest;
+	/** Generate asset manifest after pending hashes settle */
+	generateManifest: (outputDir: string) => Promise<AssetManifest>;
 	/** Clear tracked assets */
 	clear: () => void;
 }

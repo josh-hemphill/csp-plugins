@@ -5,6 +5,7 @@ export default defineConfig({
 		projects: [
 			'packages/typed-directives',
 			'packages/core',
+			'packages/shared',
 			'packages/basic-fscache',
 			{
 				test: {
@@ -21,6 +22,7 @@ export default defineConfig({
 			include: [
 				'packages/typed-directives/src/**/*.ts',
 				'packages/core/lib/**/*.ts',
+				'packages/shared/src/**/*.ts',
 				'packages/basic-fscache/lib/**/*.ts',
 			],
 			exclude: ['**/*.test.ts', '**/tests/**', '**/test/**', '**/dist/**', '**/node_modules/**'],

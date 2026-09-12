@@ -16,7 +16,7 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): PluginOpt
 		enforce: 'post',
 
 		// Track assets during build
-		generateBundle(buildOptions, bundle) {
+		async generateBundle(buildOptions, bundle) {
 			if (!tracker.getOptions().trackAssets) {
 				return;
 			}
@@ -70,11 +70,8 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): PluginOpt
 				}
 			}
 
-			// Write manifest
-			const manifest = tracker.generateManifest(outputDir);
-			manifestWriter
-				.writeManifest(manifest)
-				.catch((error: unknown) => console.error('Failed to write manifest:', error));
+			const manifest = await tracker.generateManifest(outputDir);
+			await manifestWriter.writeManifest(manifest);
 		},
 
 		// Dev server integration

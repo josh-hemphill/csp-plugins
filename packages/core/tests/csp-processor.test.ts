@@ -110,9 +110,12 @@ describe('cSPProcessor', () => {
 
 			// Hashes should be generated during processDOM, not analyzeDOM
 			expect(result.analysis.inlineScripts[0].hash).toBeDefined();
-			expect(result.analysis.inlineScripts[0].hash).toMatch(/^[A-Z0-9+/=]+$/i);
+			expect(result.analysis.inlineScripts[0].hash).toMatch(
+				/^sha(256|384|512)-[A-Za-z0-9+/=]+$/,
+			);
+			expect(result.analysis.inlineScripts[0].hash?.startsWith('sha256-sha256-')).toBe(false);
 			expect(result.analysis.inlineStyles[0].hash).toBeDefined();
-			expect(result.analysis.inlineStyles[0].hash).toMatch(/^[A-Z0-9+/=]+$/i);
+			expect(result.analysis.inlineStyles[0].hash).toMatch(/^sha(256|384|512)-[A-Za-z0-9+/=]+$/);
 		});
 
 		it('includes element references', async () => {
@@ -157,6 +160,7 @@ describe('cSPProcessor', () => {
 			expect(csp).toContain('script-src');
 			expect(csp).toContain('style-src');
 			expect(csp).toContain('sha256-');
+			expect(csp).not.toContain('sha256-sha256-');
 		});
 
 		it('includes nonces in CSP directives', async () => {

@@ -1,4 +1,4 @@
-import { generateHash } from '@csp-plugins/core';
+import { generateHash, hasHashPrefix, type HashSource } from '@csp-plugins/core';
 
 import type { AssetManifest, CspPluginOptions, TrackedAsset } from './types.ts';
 
@@ -9,6 +9,7 @@ export class CommonAssetTracker {
 	private assets: TrackedAsset[] = [];
 	private options: Required<CspPluginOptions>;
 	private buildTool: string;
+	private pendingHashes = new Set<Promise<void>>();
 
 	constructor(buildTool: string, options: CspPluginOptions = {}) {
 		this.buildTool = buildTool;
@@ -26,34 +27,28 @@ export class CommonAssetTracker {
 	}
 
 	/**
-	 * Track a new asset
+	 * Track a new asset. Hash generation is async; call `generateManifest` to wait.
 	 */
-	trackAsset(asset: Omit<TrackedAsset, 'timestamp' | 'buildTool'>): void {
+	trackAsset(
+		asset: Omit<TrackedAsset, 'timestamp' | 'buildTool' | 'hash'> & { hash?: string },
+	): void {
 		if (!this.options.trackAssets) return;
 
 		// Check include/exclude patterns
 		if (!this.shouldTrackAsset(asset.path)) return;
 
+		const { hash: providedHash, ...assetRest } = asset;
 		const trackedAsset: TrackedAsset = {
-			...asset,
+			...assetRest,
 			buildTool: this.buildTool,
 			timestamp: Date.now(),
 		};
 
-		// Generate hash if not provided
-		if (trackedAsset.source !== undefined && trackedAsset.hash === undefined) {
-			generateHash(trackedAsset.source, 'sha256')
-				.then((hash: string) => {
-					if (trackedAsset.hash === undefined) {
-						trackedAsset.hash = hash;
-					}
-				})
-				.catch((error) => {
-					// Hash generation failed, continue without it
-					console.error(error);
-				});
+		if (providedHash !== undefined && hasHashPrefix(providedHash)) {
+			trackedAsset.hash = providedHash as HashSource;
+		} else {
+			this.enqueueHash(trackedAsset);
 		}
-
 		this.assets.push(trackedAsset);
 	}
 
@@ -65,9 +60,10 @@ export class CommonAssetTracker {
 	}
 
 	/**
-	 * Generate asset manifest
+	 * Generate asset manifest after every pending hash has settled.
 	 */
-	generateManifest(outputDir: string): AssetManifest {
+	async generateManifest(outputDir: string): Promise<AssetManifest> {
+		await Promise.all(this.pendingHashes);
 		return {
 			buildTool: this.buildTool,
 			buildTime: Date.now(),
@@ -82,6 +78,27 @@ export class CommonAssetTracker {
 	 */
 	clear(): void {
 		this.assets = [];
+		this.pendingHashes.clear();
+	}
+
+	private enqueueHash(trackedAsset: TrackedAsset): void {
+		if (trackedAsset.source === undefined) {
+			trackedAsset.hash = undefined;
+			return;
+		}
+
+		const job = generateHash(trackedAsset.source, 'sha256')
+			.then((hash) => {
+				trackedAsset.hash = hash;
+			})
+			.catch((error: unknown) => {
+				trackedAsset.hash = undefined;
+				console.error(error);
+			});
+		this.pendingHashes.add(job);
+		void job.finally(() => {
+			this.pendingHashes.delete(job);
+		});
 	}
 
 	/**

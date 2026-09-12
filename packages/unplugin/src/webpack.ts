@@ -21,7 +21,7 @@ export class CspWebpackPlugin implements WebpackPluginInstance {
 
 	apply(compiler: Compiler): void {
 		// Track assets during build
-		compiler.hooks.afterEmit.tap('CspWebpackPlugin', (compilation: Compilation) => {
+		compiler.hooks.afterEmit.tapPromise('CspWebpackPlugin', async (compilation: Compilation) => {
 			if (!this.tracker.getOptions().trackAssets) {
 				return;
 			}
@@ -69,11 +69,8 @@ export class CspWebpackPlugin implements WebpackPluginInstance {
 				}
 			}
 
-			// Write manifest
-			const manifest = this.tracker.generateManifest(outputPath);
-			manifestWriter
-				.writeManifest(manifest)
-				.catch((error: unknown) => console.error('Failed to write manifest:', error));
+			const manifest = await this.tracker.generateManifest(outputPath);
+			await manifestWriter.writeManifest(manifest);
 		});
 
 		// Dev server integration

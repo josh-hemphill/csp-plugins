@@ -110,15 +110,8 @@ describe('CSP Hash Validation Tests', () => {
 
 		for (const script of scriptAssets) {
 			echo(`🔍 Script asset: ${script.id}, hash: ${script.hash}`);
-
-			// Check that hash is present
-			expect(script.hash).toBeDefined();
-			expect(script.hash).toBeTruthy();
-
-			// TODO: The current hash format appears to be base64, but CSP expects sha256-, sha384-, sha512-
-			// This is likely where the hashing issue is occurring
-			console.log(`⚠️  Current hash format: ${script.hash}`);
-			console.log(`⚠️  Expected format should be: sha256-<base64-hash>`);
+			expect(script.hash).toMatch(/^sha(256|384|512)-[A-Za-z0-9+/=]+$/);
+			expect(script.hash.startsWith('sha256-sha256-')).toBe(false);
 		}
 
 		// Check style assets for proper hash format
@@ -127,8 +120,7 @@ describe('CSP Hash Validation Tests', () => {
 
 		for (const style of styleAssets) {
 			echo(`🎨 Style asset: ${style.id}, hash: ${style.hash}`);
-			expect(style.hash).toBeDefined();
-			expect(style.hash).toBeTruthy();
+			expect(style.hash).toMatch(/^sha(256|384|512)-[A-Za-z0-9+/=]+$/);
 		}
 	}, 60000);
 
@@ -184,8 +176,7 @@ describe('CSP Hash Validation Tests', () => {
 			echo(`✅ Found ${inlineScripts.length} inline script(s)`);
 			for (const script of inlineScripts) {
 				echo(`🔍 Inline script hash: ${script.hash}`);
-				expect(script.hash).toBeDefined();
-				expect(script.hash).toBeTruthy();
+				expect(script.hash).toMatch(/^sha(256|384|512)-[A-Za-z0-9+/=]+$/);
 			}
 		} else {
 			echo('⚠️  No inline scripts found in manifest - this may indicate a tracking issue');
@@ -252,7 +243,7 @@ describe('CSP Hash Validation Tests', () => {
 		for (const assetPath of referencedAssets) {
 			const manifestAsset = manifest.assets.find((asset: any) => asset.path === assetPath);
 			expect(manifestAsset).toBeDefined();
-			expect(manifestAsset.hash).toBeDefined();
+			expect(manifestAsset.hash).toMatch(/^sha(256|384|512)-[A-Za-z0-9+/=]+$/);
 			echo(`✅ Asset ${assetPath} found in manifest with hash: ${manifestAsset.hash}`);
 		}
 	}, 60000);

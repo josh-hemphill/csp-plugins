@@ -103,43 +103,15 @@ describe('CSP Integrity and Hash Format Tests', () => {
 			echo(`   Hash: ${asset.hash}`);
 			echo(`   MIME: ${asset.mimeType}`);
 
-			// Validate hash format
-			expect(asset.hash).toBeDefined();
-			expect(asset.hash).toBeTruthy();
-
-			// Check if hash is in the correct CSP format
-			// CSP expects: sha256-<base64-hash>, sha384-<base64-hash>, sha512-<base64-hash>
-			const isValidCSPHash = /^sha(256|384|512)-[A-Za-z0-9+/=]+$/.test(asset.hash);
-
-			if (!isValidCSPHash) {
-				echo(`⚠️  INVALID HASH FORMAT: ${asset.hash}`);
-				echo(`   Expected format: sha256-<base64-hash>`);
-				echo(`   Current format appears to be raw base64 without algorithm prefix`);
-
-				// This is likely the root cause of the hashing issues
-				console.log(`🚨 HASH FORMAT ISSUE DETECTED:`);
-				console.log(`   Asset: ${asset.id}`);
-				console.log(`   Current hash: ${asset.hash}`);
-				console.log(`   Expected format: sha256-${asset.hash}`);
-				console.log(`   The hash is missing the algorithm prefix!`);
-			} else {
-				echo(`✅ Valid CSP hash format: ${asset.hash}`);
-			}
+			expect(asset.hash).toMatch(/^sha(256|384|512)-[A-Za-z0-9+/=]+$/);
+			expect(String(asset.hash).startsWith('sha256-sha256-')).toBe(false);
 		}
 
 		// Summary of findings
 		const invalidHashes = manifest.assets.filter(
-			(asset: any) => !/^sha(256|384|512)-[A-Za-z0-9+/=]+$/.test(asset.hash),
+			(asset: { hash?: string }) => !/^sha(256|384|512)-[A-Za-z0-9+/=]+$/.test(asset.hash ?? ''),
 		);
-
-		if (invalidHashes.length > 0) {
-			echo(`🚨 Found ${invalidHashes.length} assets with invalid hash format:`);
-			invalidHashes.forEach((asset: any) => {
-				echo(`   - ${asset.id}: ${asset.hash}`);
-			});
-		} else {
-			echo(`✅ All assets have valid CSP hash format`);
-		}
+		expect(invalidHashes).toHaveLength(0);
 	}, 60000);
 
 	it('should test integrity attribute generation', async () => {
@@ -215,12 +187,12 @@ describe('CSP Integrity and Hash Format Tests', () => {
 		}
 
 		// Check if any integrity attributes are present
-		const hasIntegrityAttributes = htmlContent.includes('integrity=');
-		if (hasIntegrityAttributes) {
-			echo(`✅ HTML contains integrity attributes`);
-		} else {
-			echo(`⚠️  HTML does not contain integrity attributes`);
-			echo(`   This suggests that integrity attribute injection is not implemented`);
+		const integrityValues = [...htmlContent.matchAll(/integrity="([^"]+)"/g)].map(
+			(match) => match[1],
+		);
+		for (const integrity of integrityValues) {
+			expect(integrity).toMatch(/^sha(256|384|512)-[A-Za-z0-9+/=]+$/);
+			expect(integrity?.startsWith('sha256-sha256-')).toBe(false);
 		}
 	}, 60000);
 

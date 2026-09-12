@@ -24,7 +24,7 @@ pnpm test:coverage
 pnpm docs:api
 ```
 
-`pnpm build` covers `@csp-plugins/typed-directives`, `@csp-plugins/core`, `@csp-plugins/shared`, and `@csp-plugins/basic-fscache`. `pnpm build:all` also builds `@csp-plugins/cli` and `@csp-plugins/unplugin` (CI uses this). `pnpm test` runs unit tests for typed-directives, core, basic-fscache, and the workspace scripts. `pnpm test:coverage` adds V8 coverage (Cobertura + HTML + JSON) for the three libraries; CI uploads that report to GitHub Code Quality on Node 24. `pnpm docs:api` generates TypeDoc HTML for `@csp-plugins/typed-directives` (deployed from `main` to GitHub Pages).
+`pnpm build` covers `@csp-plugins/typed-directives`, `@csp-plugins/core`, `@csp-plugins/shared`, and `@csp-plugins/basic-fscache`. `pnpm build:all` also builds `@csp-plugins/cli` and `@csp-plugins/unplugin` (CI uses this). `pnpm test` runs unit tests for typed-directives, core, shared, basic-fscache, and the workspace scripts. `pnpm test:coverage` adds V8 coverage (Cobertura + HTML + JSON) for typed-directives, core, shared, and basic-fscache; CI uploads that report to GitHub Code Quality on Node 24. `pnpm docs:api` generates TypeDoc HTML for `@csp-plugins/typed-directives` (deployed from `main` to GitHub Pages).
 
 ## Packages
 

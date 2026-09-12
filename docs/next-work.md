@@ -75,6 +75,7 @@ Areas 3 and 5 conflict if both invent header-file formats; Area 1 owns the canon
 
 ### Area 1: Hash and header contract
 
+  - Status: **done on this line** — `generateHash` returns `sha256|sha384|sha512-<base64>`, `toHashSource` is idempotent, `CommonAssetTracker.generateManifest` awaits pending hashes, integrity/CSP sources reuse the same string (no double-prefix). Shared now has a Vitest project.
   - Goal: Every hash that appears in a manifest, integrity attribute, or CSP source is `sha256|sha384|sha512-<base64>`. `getHeaders()` is the only public header map.
   - Depends on: nothing (baseline)
   - Out of scope: plugin HTML transform, host files, changing default directives

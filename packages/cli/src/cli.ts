@@ -336,7 +336,7 @@ export class CliProcessor {
 			await this.scanDirectoryForAssets(this.options.inputDir, assetTracker);
 
 			// Generate the manifest
-			const manifest = assetTracker.generateManifest(this.options.inputDir);
+			const manifest = await assetTracker.generateManifest(this.options.inputDir);
 
 			// Load CSP policies from file if specified, otherwise use defaults
 			let baseDirectives: Partial<CspDirectives> | undefined;
