@@ -104,6 +104,7 @@ interface CSPResult {
 
 ### Area 2: Strict defaults in core
 
+  - Status: **done on this line** — default `script-src` / `style-src` are `'self'` plus hashes/nonces. `'unsafe-inline'` / `'unsafe-eval'` stay behind `development.allowUnsafeInline` / `allowUnsafeEval`. `generateHeaders: true` still uses `builder.getHeaders()`.
   - Goal: Default policy is `'self'` + hashes/nonces. `'unsafe-inline'` / `'unsafe-eval'` only behind `development.allowUnsafeInline` / `allowUnsafeEval`.
   - Depends on: Area 1
   - Out of scope: bundler plugins, host adapters, SSR nonce sessions

@@ -27,6 +27,34 @@ const serializeOptions: DomSerializerOptions = {
 	encodeEntities: false,
 };
 
+const STRICT_FETCH_DEFAULT = 'self' as const;
+
+/** Flatten an optional CSP source list, dropping empty entries. */
+function listSources<T>(base: T | T[] | undefined): T[] {
+	if (base === undefined) {
+		return [];
+	}
+	return Array.isArray(base) ? [...base] : [base];
+}
+
+/** Append sources without duplicating existing entries. */
+function appendSources<T extends string>(base: T | T[] | undefined, extra: T[]): T[] {
+	const merged = [...listSources(base), ...extra];
+	const seen = new Set<string>();
+	const result: T[] = [];
+	for (const item of merged) {
+		if (typeof item !== 'string' || item.length === 0) {
+			continue;
+		}
+		if (seen.has(item)) {
+			continue;
+		}
+		seen.add(item);
+		result.push(item);
+	}
+	return result;
+}
+
 export type ExternalSourceType = 'script' | 'style' | 'image' | 'font' | 'other';
 export type CryptoGenerator = (src: string, type: ExternalSourceType) => PromiseLike<string>;
 export interface ExternalSourceGeneralOptions {
@@ -675,8 +703,8 @@ export class CSPProcessor {
 			cspBuilder.CSP['default-src'] = [...(cspBuilder.CSP['default-src'] ?? []), ...(this.options.baseDirectives.CSP['default-src'] ?? [])] as Sources;
 		} */
 
-		// Add script sources
-		const scriptSrc: ActionSource[] = [];
+		// Add script sources. Strict default is `'self'` plus hashes/nonces.
+		const scriptSrc: ActionSource[] = [STRICT_FETCH_DEFAULT];
 		if (this.options.enableHashes) {
 			for (const script of analysis.inlineScripts) {
 				const hash = await generateHash(script.content, this.options.hashAlgorithm);
@@ -710,8 +738,8 @@ export class CSPProcessor {
 			}
 		}
 
-		// Add style sources
-		const styleSrc: Sources = [];
+		// Add style sources. Strict default is `'self'` plus hashes/nonces.
+		const styleSrc: Sources = [STRICT_FETCH_DEFAULT];
 		if (this.options.enableHashes) {
 			for (const style of analysis.inlineStyles) {
 				const hash = await generateHash(style.content, this.options.hashAlgorithm);
@@ -801,25 +829,25 @@ export class CSPProcessor {
 		}
 
 		// Update CSP directives
-		if (scriptSrc.length > 0) {
-			const base = cspBuilder.CSP['script-src'];
-			const scriptSrcArray = Array.isArray(base) ? base : [base];
-			cspBuilder.CSP['script-src'] = [...scriptSrcArray, ...scriptSrc] as Sources;
-		}
-		if (styleSrc.length > 0) {
-			const base = cspBuilder.CSP['style-src'];
-			const styleSrcArray = Array.isArray(base) ? base : [base];
-			cspBuilder.CSP['style-src'] = [...styleSrcArray, ...styleSrc] as Sources;
-		}
+		cspBuilder.CSP['script-src'] = appendSources(
+			cspBuilder.CSP['script-src'] as ActionSource | ActionSource[] | undefined,
+			scriptSrc,
+		);
+		cspBuilder.CSP['style-src'] = appendSources(
+			cspBuilder.CSP['style-src'] as Sources | undefined,
+			styleSrc,
+		);
 		if (imgSrc.length > 0) {
-			const base = cspBuilder.CSP['img-src'];
-			const imgSrcArray = Array.isArray(base) ? base : [base];
-			cspBuilder.CSP['img-src'] = [...imgSrcArray, ...imgSrc] as Sources;
+			cspBuilder.CSP['img-src'] = appendSources(
+				cspBuilder.CSP['img-src'] as Sources | undefined,
+				imgSrc,
+			);
 		}
 		if (fontSrc.length > 0) {
-			const base = cspBuilder.CSP['font-src'];
-			const fontSrcArray = Array.isArray(base) ? base : [base];
-			cspBuilder.CSP['font-src'] = [...fontSrcArray, ...fontSrc] as Sources;
+			cspBuilder.CSP['font-src'] = appendSources(
+				cspBuilder.CSP['font-src'] as Sources | undefined,
+				fontSrc,
+			);
 		}
 
 		if (this.options.developmentMode) {
