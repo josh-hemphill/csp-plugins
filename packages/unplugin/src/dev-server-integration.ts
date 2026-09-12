@@ -1,6 +1,6 @@
 import type { CSPProcessor, CSPProcessorOptions } from '@csp-plugins/core';
-import type { AssetManifest, CspPluginOptions } from '@csp-plugins/shared/types';
 import { CSPProcessor as CoreCSPProcessor } from '@csp-plugins/core';
+import type { AssetManifest, CspPluginOptions } from '@csp-plugins/shared/types';
 
 /**
  * Dev server integration for CSP processing
@@ -39,8 +39,7 @@ export class DevServerIntegration {
 				return result.html;
 			}
 			return html;
-		}
-		catch (error) {
+		} catch (error) {
 			console.warn(`Failed to process HTML for CSP at ${url}:`, error);
 			return html; // Return original HTML on error
 		}
@@ -64,12 +63,13 @@ export class DevServerIntegration {
 		// Convert manifest CSP directives to headers format
 		const directives: Record<string, string> = {};
 
-		for (const [key, value] of Object.entries(this.manifest.cspProcessorOptions.baseDirectives ?? {})) {
+		for (const [key, value] of Object.entries(
+			this.manifest.cspProcessorOptions.baseDirectives ?? {},
+		)) {
 			if (value !== undefined) {
 				if (Array.isArray(value)) {
 					directives[key] = value.join(' ');
-				}
-				else {
+				} else {
 					directives[key] = String(value);
 				}
 			}

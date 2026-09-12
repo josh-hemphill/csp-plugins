@@ -1,9 +1,9 @@
 {
-  "CSP": {
-    "script-src": ["self", "https://cdn.jsdelivr.net"],
-    "style-src": ["self", "https://cdn.jsdelivr.net", "unsafe-inline"],
-    "img-src": ["self", "data:", "https:"],
-    "font-src": ["self", "https://fonts.googleapis.com"],
-    "connect-src": ["self", "https://api.example.com"]
-  }
+	"CSP": {
+		"script-src": ["self", "https://cdn.jsdelivr.net"],
+		"style-src": ["self", "https://cdn.jsdelivr.net", "unsafe-inline"],
+		"img-src": ["self", "data:", "https:"],
+		"font-src": ["self", "https://fonts.googleapis.com"],
+		"connect-src": ["self", "https://api.example.com"]
+	}
 }

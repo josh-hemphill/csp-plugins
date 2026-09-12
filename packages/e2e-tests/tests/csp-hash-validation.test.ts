@@ -1,9 +1,19 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import type { Browser, Page } from 'puppeteer';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $, echo } from 'zx';
+
 import {
 	closeBrowser,
 	createCSPMonitoringPage,
@@ -166,8 +176,8 @@ describe('CSP Hash Validation Tests', () => {
 		echo('📋 Updated manifest with inline scripts:', manifest);
 
 		// Look for inline script assets
-		const inlineScripts = manifest.assets.filter((asset: any) =>
-			asset.type === 'script' && asset.inline === true
+		const inlineScripts = manifest.assets.filter(
+			(asset: any) => asset.type === 'script' && asset.inline === true,
 		);
 
 		if (inlineScripts.length > 0) {
@@ -219,7 +229,7 @@ describe('CSP Hash Validation Tests', () => {
 		const referencedAssets = new Set<string>();
 
 		if (scriptMatches) {
-			scriptMatches.forEach(match => {
+			scriptMatches.forEach((match) => {
 				const src = match.match(/src="([^"]+)"/)?.[1];
 				if (src) {
 					referencedAssets.add(src.replace(/^\//, '')); // Remove leading slash
@@ -228,7 +238,7 @@ describe('CSP Hash Validation Tests', () => {
 		}
 
 		if (styleMatches) {
-			styleMatches.forEach(match => {
+			styleMatches.forEach((match) => {
 				const href = match.match(/href="([^"]+)"/)?.[1];
 				if (href) {
 					referencedAssets.add(href.replace(/^\//, '')); // Remove leading slash
@@ -320,11 +330,11 @@ describe('CSP Hash Validation Tests', () => {
 			// For now, we expect no violations since CSP isn't being injected
 			// This will change once HTML transformation is implemented
 			echo('⚠️  Note: CSP policies are not yet being injected into HTML');
-			echo('⚠️  This test will validate actual CSP compliance once HTML transformation is implemented');
-
+			echo(
+				'⚠️  This test will validate actual CSP compliance once HTML transformation is implemented',
+			);
 		} finally {
 			server.close();
 		}
 	}, 60000);
 });
-

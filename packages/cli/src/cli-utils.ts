@@ -1,8 +1,9 @@
-import type { AssetManifest, TrackedAsset } from '@csp-plugins/shared/types';
 import { promises as fs } from 'node:fs';
 import { dirname, join } from 'node:path';
+
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
 import { PostBuildDetector } from '@csp-plugins/shared/post-build-detector';
+import type { AssetManifest, TrackedAsset } from '@csp-plugins/shared/types';
 
 /**
  * CLI utilities for post-build processing
@@ -100,7 +101,10 @@ export class CliUtils {
 	/**
 	 * Write CSP directives to a file
 	 */
-	async writeCspDirectives(directives: Record<string, string[]>, outputPath: string): Promise<string> {
+	async writeCspDirectives(
+		directives: Record<string, string[]>,
+		outputPath: string,
+	): Promise<string> {
 		// Ensure directory exists
 		await this.ensureDirectory(dirname(outputPath));
 
@@ -148,13 +152,13 @@ export class CliUtils {
 			report.summary.byType[asset.type] = (report.summary.byType[asset.type] || 0) + 1;
 
 			// Count by build tool
-			report.summary.byBuildTool[asset.buildTool] = (report.summary.byBuildTool[asset.buildTool] || 0) + 1;
+			report.summary.byBuildTool[asset.buildTool] =
+				(report.summary.byBuildTool[asset.buildTool] || 0) + 1;
 
 			// Count inline vs external
 			if (asset.inline) {
 				report.summary.inlineAssets++;
-			}
-			else {
+			} else {
 				report.summary.externalAssets++;
 			}
 		}
@@ -186,8 +190,7 @@ export class CliUtils {
 	private async ensureDirectory(dir: string): Promise<void> {
 		try {
 			await fs.access(dir);
-		}
-		catch {
+		} catch {
 			await fs.mkdir(dir, { recursive: true });
 		}
 	}

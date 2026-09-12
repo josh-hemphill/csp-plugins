@@ -46,8 +46,8 @@ export async function launchBrowser(): Promise<Browser> {
 			'--disable-accelerated-2d-canvas',
 			'--no-first-run',
 			'--no-zygote',
-			'--disable-gpu'
-		]
+			'--disable-gpu',
+		],
 	});
 }
 
@@ -56,7 +56,7 @@ export async function launchBrowser(): Promise<Browser> {
  */
 export async function createCSPMonitoringPage(browser: Browser): Promise<Page> {
 	const page = await browser.newPage();
-	
+
 	// Capture console errors
 	const consoleErrors: string[] = [];
 	page.on('console', (msg) => {
@@ -68,17 +68,21 @@ export async function createCSPMonitoringPage(browser: Browser): Promise<Page> {
 	// Capture CSP violations
 	const cspViolations: string[] = [];
 	page.on('pageerror', (error) => {
-		if (error.message.includes('Content Security Policy') || 
+		if (
+			error.message.includes('Content Security Policy') ||
 			error.message.includes('CSP') ||
-			error.message.includes('security policy')) {
+			error.message.includes('security policy')
+		) {
 			cspViolations.push(error.message);
 		}
 	});
 
 	// Monitor security policy violations
 	page.on('error', (error) => {
-		if (error.message.includes('security policy') || 
-			error.message.includes('Content Security Policy')) {
+		if (
+			error.message.includes('security policy') ||
+			error.message.includes('Content Security Policy')
+		) {
 			cspViolations.push(error.message);
 		}
 	});
@@ -89,7 +93,7 @@ export async function createCSPMonitoringPage(browser: Browser): Promise<Page> {
 			consoleErrors: [],
 			cspViolations: [],
 			securityPolicyViolations: [],
-			otherErrors: []
+			otherErrors: [],
 		};
 
 		// Override console.error to capture errors
@@ -106,7 +110,7 @@ export async function createCSPMonitoringPage(browser: Browser): Promise<Page> {
 				blockedURI: event.blockedURI,
 				documentURI: event.documentURI,
 				effectiveDirective: event.effectiveDirective,
-				originalPolicy: event.originalPolicy
+				originalPolicy: event.originalPolicy,
 			});
 		});
 	});
@@ -118,14 +122,14 @@ export async function createCSPMonitoringPage(browser: Browser): Promise<Page> {
  * Validates CSP policy in a page
  */
 export async function validateCSP(
-	page: Page, 
-	config: CSPValidationConfig
+	page: Page,
+	config: CSPValidationConfig,
 ): Promise<CSPValidationResult> {
 	try {
 		// Navigate to the page
-		await page.goto(config.url, { 
+		await page.goto(config.url, {
 			waitUntil: 'networkidle2',
-			timeout: config.timeout || 30000
+			timeout: config.timeout || 30000,
 		});
 
 		// Wait a bit for any CSP violations to be captured
@@ -142,29 +146,34 @@ export async function validateCSP(
 
 		// Get captured errors from page context
 		const pageErrors = await page.evaluate(() => {
-			return (window as any).__cspTestErrors || {
-				consoleErrors: [],
-				cspViolations: [],
-				securityPolicyViolations: [],
-				otherErrors: []
-			};
+			return (
+				(window as any).__cspTestErrors || {
+					consoleErrors: [],
+					cspViolations: [],
+					securityPolicyViolations: [],
+					otherErrors: [],
+				}
+			);
 		});
 
 		// Check for CSP-related console errors
-		const cspConsoleErrors = pageErrors.consoleErrors.filter((error: string) =>
-			error.toLowerCase().includes('csp') ||
-			error.toLowerCase().includes('content security policy') ||
-			error.toLowerCase().includes('security policy')
+		const cspConsoleErrors = pageErrors.consoleErrors.filter(
+			(error: string) =>
+				error.toLowerCase().includes('csp') ||
+				error.toLowerCase().includes('content security policy') ||
+				error.toLowerCase().includes('security policy'),
 		);
 
 		// Check for security policy violations
-		const securityPolicyViolations = pageErrors.securityPolicyViolations.map((violation: any) =>
-			`CSP Violation: ${violation.violatedDirective} blocked ${violation.blockedURI}`
+		const securityPolicyViolations = pageErrors.securityPolicyViolations.map(
+			(violation: any) =>
+				`CSP Violation: ${violation.violatedDirective} blocked ${violation.blockedURI}`,
 		);
 
 		// Determine success based on expectations
-		const hasViolations = cspConsoleErrors.length > 0 || 
-			securityPolicyViolations.length > 0 || 
+		const hasViolations =
+			cspConsoleErrors.length > 0 ||
+			securityPolicyViolations.length > 0 ||
 			pageErrors.cspViolations.length > 0;
 
 		const success = config.expectViolations ? hasViolations : !hasViolations;
@@ -175,7 +184,7 @@ export async function validateCSP(
 			consoleErrors: pageErrors.consoleErrors,
 			cspViolations: pageErrors.cspViolations,
 			securityPolicyViolations,
-			otherErrors: pageErrors.otherErrors
+			otherErrors: pageErrors.otherErrors,
 		};
 	} catch (error) {
 		return {
@@ -183,7 +192,7 @@ export async function validateCSP(
 			consoleErrors: [],
 			cspViolations: [],
 			securityPolicyViolations: [],
-			otherErrors: [error instanceof Error ? error.message : String(error)]
+			otherErrors: [error instanceof Error ? error.message : String(error)],
 		};
 	}
 }
@@ -194,4 +203,3 @@ export async function validateCSP(
 export async function closeBrowser(browser: Browser): Promise<void> {
 	await browser.close();
 }
-

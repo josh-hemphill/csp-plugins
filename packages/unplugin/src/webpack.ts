@@ -1,7 +1,7 @@
-import type { CspPluginOptions } from '@csp-plugins/shared/types';
-import type { Compilation, Compiler, WebpackPluginInstance } from 'webpack';
 import { CommonAssetTracker } from '@csp-plugins/shared/asset-tracker';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
+import type { CspPluginOptions } from '@csp-plugins/shared/types';
+import type { Compilation, Compiler, WebpackPluginInstance } from 'webpack';
 
 export default function cspWebpackPlugin(options: CspPluginOptions = {}): WebpackPluginInstance {
 	return new CspWebpackPlugin(options);
@@ -51,7 +51,11 @@ export class CspWebpackPlugin implements WebpackPluginInstance {
 
 			// Track chunks
 			for (const chunk of compilation.chunks) {
-				if (chunk.files !== undefined && chunk.files !== null && Array.from(chunk.files).length > 0) {
+				if (
+					chunk.files !== undefined &&
+					chunk.files !== null &&
+					Array.from(chunk.files).length > 0
+				) {
 					for (const file of chunk.files) {
 						this.tracker.trackAsset({
 							id: file,
@@ -67,7 +71,9 @@ export class CspWebpackPlugin implements WebpackPluginInstance {
 
 			// Write manifest
 			const manifest = this.tracker.generateManifest(outputPath);
-			manifestWriter.writeManifest(manifest).catch((error: unknown) => console.error('Failed to write manifest:', error));
+			manifestWriter
+				.writeManifest(manifest)
+				.catch((error: unknown) => console.error('Failed to write manifest:', error));
 		});
 
 		// Dev server integration
@@ -75,7 +81,9 @@ export class CspWebpackPlugin implements WebpackPluginInstance {
 			compiler.hooks.watchRun.tap('CspWebpackPlugin', () => {
 				// Track files that changed during watch mode
 				if (compiler.watchFileSystem) {
-					const watchFileSystem = compiler.watchFileSystem as { watcher?: { mtimes?: Record<string, unknown> } };
+					const watchFileSystem = compiler.watchFileSystem as {
+						watcher?: { mtimes?: Record<string, unknown> };
+					};
 					const watcher = watchFileSystem.watcher;
 					if (watcher?.mtimes) {
 						for (const [file] of Object.entries(watcher.mtimes)) {
@@ -99,7 +107,9 @@ export class CspWebpackPlugin implements WebpackPluginInstance {
 			const outputPath = compiler.options.output?.path ?? 'dist';
 			const finalManifestDir = this.options.manifestDir ?? `${outputPath}/.csp-manifest`;
 			const manifestWriter = new ManifestWriter(finalManifestDir);
-			manifestWriter.cleanupOldManifests().catch((error: unknown) => console.error('Failed to cleanup manifests:', error));
+			manifestWriter
+				.cleanupOldManifests()
+				.catch((error: unknown) => console.error('Failed to cleanup manifests:', error));
 		});
 	}
 

@@ -1,6 +1,15 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $, cd, chalk, echo } from 'zx';
 
@@ -86,8 +95,7 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 				const { stdout } = await $`node ${CLI_PATH} ${nonExistentDir}`;
 				// Should handle gracefully
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}
@@ -101,8 +109,7 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 				const { stdout } = await $`node ${CLI_PATH} ${emptyDir}`;
 				// Should handle gracefully
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}
@@ -119,8 +126,7 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 				const { stdout } = await $`node ${CLI_PATH} ${noHtmlDir}`;
 				// Should handle gracefully
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}
@@ -132,7 +138,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			const isolatedDir = await buildTestAppInIsolation('no-headers-no-html');
 
 			// Run CLI with both flags
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-headers --no-html`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-headers --no-html`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -159,7 +166,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			const isolatedDir = await buildTestAppInIsolation('verbose-integrity');
 
 			// Run CLI with both flags
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --verbose --integrity`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --verbose --integrity`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -189,7 +197,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			const outputDir = join(testOutputDir, 'new-output-dir');
 
 			// Run CLI with non-existent output directory
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --output-dir ${outputDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --output-dir ${outputDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -212,7 +221,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 
 			// Run CLI with relative output directory
 			cd(isolatedDir);
-			const { stdout } = await $`node ${CLI_PATH} . --output-dir ${relativeOutputDir} --auto-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} . --output-dir ${relativeOutputDir} --auto-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -241,7 +251,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			writeFileSync(manifestPath, JSON.stringify(emptyArraysManifest, null, 2));
 
 			// Run CLI with empty arrays manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${manifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${manifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -274,7 +285,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			writeFileSync(manifestPath, JSON.stringify(nullValuesManifest, null, 2));
 
 			// Run CLI with null values manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${manifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${manifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -307,7 +319,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			writeFileSync(manifestPath, JSON.stringify(mixedTypesManifest, null, 2));
 
 			// Run CLI with mixed types manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${manifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${manifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -348,7 +361,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			writeFileSync(manifestPath, JSON.stringify(extremeLargeManifest, null, 2));
 
 			// Run CLI with extremely large manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${manifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${manifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -449,8 +463,7 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			try {
 				const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest`;
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}
@@ -466,8 +479,7 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			// Try to make it read-only (this might not work on all systems)
 			try {
 				await $`chmod 444 ${readOnlyFile}`;
-			}
-			catch {
+			} catch {
 				// Skip if chmod doesn't work
 			}
 
@@ -475,8 +487,7 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			try {
 				const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest`;
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}

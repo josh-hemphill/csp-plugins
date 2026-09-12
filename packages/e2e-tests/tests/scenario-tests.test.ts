@@ -1,6 +1,15 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $, cd, chalk, echo } from 'zx';
 
@@ -61,7 +70,8 @@ describe('e2E Scenario Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('basic-processing');
 
 			// Run CLI
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -90,7 +100,8 @@ describe('e2E Scenario Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('both-headers-meta');
 
 			// Run CLI
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -119,7 +130,8 @@ describe('e2E Scenario Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('no-headers-behavior');
 
 			// Run CLI with --no-headers flag
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-headers`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-headers`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -148,7 +160,8 @@ describe('e2E Scenario Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('no-html-behavior');
 
 			// Run CLI with --no-html flag
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-html`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-html`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -186,7 +199,8 @@ describe('e2E Scenario Tests', () => {
 			writeFileSync(customManifestPath, JSON.stringify(customManifest, null, 2));
 
 			// Run CLI with custom manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${customManifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${customManifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -219,8 +233,7 @@ describe('e2E Scenario Tests', () => {
 				const { stdout } = await $`node ${CLI_PATH} ${isolatedDir}`;
 				// If it doesn't crash, that's good
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}
@@ -235,11 +248,11 @@ describe('e2E Scenario Tests', () => {
 
 			// Run CLI with invalid manifest - should handle gracefully
 			try {
-				const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${invalidManifestPath}`;
+				const { stdout } =
+					await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${invalidManifestPath}`;
 				// If it doesn't crash, that's good
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}
@@ -266,7 +279,8 @@ describe('e2E Scenario Tests', () => {
 			writeFileSync(largeManifestPath, JSON.stringify(largeManifest, null, 2));
 
 			// Run CLI with large manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${largeManifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${largeManifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -282,7 +296,8 @@ describe('e2E Scenario Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('policy-strictness');
 
 			// Run CLI with default strict policy
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -311,7 +326,8 @@ describe('e2E Scenario Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('local-integrity');
 
 			// Run CLI with integrity enabled
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --integrity`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --integrity`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');

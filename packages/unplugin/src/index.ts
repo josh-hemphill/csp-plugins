@@ -1,5 +1,6 @@
 import type { CspPluginOptions } from '@csp-plugins/shared/types';
 import { createUnplugin } from 'unplugin';
+
 // Defer import then export the individual build tool plugins
 import defer * as _esbuild from './esbuild.ts';
 import defer * as _nuxt from './nuxt.ts';
@@ -14,13 +15,7 @@ const rollup: Defer<(typeof _rollup)['default']> = (...args) => _rollup.default(
 const vite: Defer<(typeof _vite)['default']> = async (...args) => _vite.default(...args);
 const webpack: Defer<(typeof _webpack)['default']> = (...args) => _webpack.default(...args);
 
-export {
-	esbuild,
-	nuxt,
-	rollup,
-	vite,
-	webpack,
-};
+export { esbuild, nuxt, rollup, vite, webpack };
 
 // Export utilities
 export { DevServerIntegration } from './dev-server-integration.ts';

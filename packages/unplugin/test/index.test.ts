@@ -1,5 +1,6 @@
 import { CommonAssetTracker, PostBuildDetector } from '@csp-plugins/shared';
 import { describe, expect, it, vi } from 'vitest';
+
 import cspVitePlugin from '../src/vite';
 
 describe('csp unplugin', () => {
@@ -51,20 +52,24 @@ describe('csp unplugin', () => {
 			const detector = new PostBuildDetector();
 
 			// Add a build manifest
-			detector.addBuildManifests([{
-				buildTool: 'test',
-				buildTime: Date.now(),
-				outputDir: 'dist',
-				assets: [{
-					id: 'tracked.js',
-					path: 'tracked.js',
-					type: 'script',
-					inline: false,
+			detector.addBuildManifests([
+				{
 					buildTool: 'test',
-					timestamp: Date.now(),
-				}],
-				cspProcessorOptions: {},
-			}]);
+					buildTime: Date.now(),
+					outputDir: 'dist',
+					assets: [
+						{
+							id: 'tracked.js',
+							path: 'tracked.js',
+							type: 'script',
+							inline: false,
+							buildTool: 'test',
+							timestamp: Date.now(),
+						},
+					],
+					cspProcessorOptions: {},
+				},
+			]);
 
 			expect(detector.getDetectedAssets()).toHaveLength(0);
 		});

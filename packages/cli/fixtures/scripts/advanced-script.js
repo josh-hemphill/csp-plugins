@@ -4,11 +4,11 @@ class AdvancedTest {
 		this.data = new Map();
 	}
 
-	addItem (key, value) {
+	addItem(key, value) {
 		this.data.set(key, value);
 	}
 
-	getItem (key) {
+	getItem(key) {
 		return this.data.get(key);
 	}
 }

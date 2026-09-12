@@ -84,27 +84,38 @@ export class FixtureManager {
 		html = html.replace('{{TITLE}}', config.title ?? 'Test Page');
 
 		if (config.scripts) {
-			html = html.replace('{{SCRIPTS}}', config.scripts.map((script) =>
-				`<script type="module" src="./${script}"></script>`,
-			).join('\n\t'));
+			html = html.replace(
+				'{{SCRIPTS}}',
+				config.scripts
+					.map((script) => `<script type="module" src="./${script}"></script>`)
+					.join('\n\t'),
+			);
 		}
 
 		if (config.styles) {
-			html = html.replace('{{STYLES}}', config.styles.map((style) =>
-				`<link rel="stylesheet" href="./${style}">`,
-			).join('\n\t'));
+			html = html.replace(
+				'{{STYLES}}',
+				config.styles.map((style) => `<link rel="stylesheet" href="./${style}">`).join('\n\t'),
+			);
 		}
 
 		if (config.images) {
-			html = html.replace('{{IMAGES}}', config.images.map((image) =>
-				`<img src="./${image}" alt="${image}">`,
-			).join('\n\t'));
+			html = html.replace(
+				'{{IMAGES}}',
+				config.images.map((image) => `<img src="./${image}" alt="${image}">`).join('\n\t'),
+			);
 		}
 
 		if (config.fonts) {
-			html = html.replace('{{FONTS}}', config.fonts.map((font) =>
-				`<link rel="preload" href="./${font}" as="font" type="font/woff2" crossorigin>`,
-			).join('\n\t'));
+			html = html.replace(
+				'{{FONTS}}',
+				config.fonts
+					.map(
+						(font) =>
+							`<link rel="preload" href="./${font}" as="font" type="font/woff2" crossorigin>`,
+					)
+					.join('\n\t'),
+			);
 		}
 
 		// Write the generated HTML
@@ -123,14 +134,19 @@ export class FixtureManager {
 	 */
 	listFixtures(type: 'scripts' | 'styles' | 'images' | 'fonts'): string[] {
 		const typeDir = join(this.fixturesDir, type);
-		if (!existsSync(typeDir))
-			return [];
+		if (!existsSync(typeDir)) return [];
 
 		// This is a simplified version - in a real implementation you'd use readdir
 		// For now, return the fixtures we know exist
 		switch (type) {
 			case 'scripts':
-				return ['test-script.js', 'utility-script.js', 'local-script.js', 'local-utility.js', 'advanced-script.js'];
+				return [
+					'test-script.js',
+					'utility-script.js',
+					'local-script.js',
+					'local-utility.js',
+					'advanced-script.js',
+				];
 			case 'styles':
 				return ['test-style.css', 'local-style.css', 'local-components.css'];
 			case 'images':

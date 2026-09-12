@@ -1,8 +1,10 @@
-import type { CspPluginOptions } from '../src/types.ts';
 import process from 'node:process';
+
+import type { CspPluginOptions } from '@csp-plugins/shared/types';
 import { CspDirectives } from '@csp-plugins/typed-directives';
 import { defineConfig } from 'vite';
 import Inspect from 'vite-plugin-inspect';
+
 import Unplugin from '../src/vite';
 
 // Test different CSP configurations
@@ -47,15 +49,13 @@ const cspConfigs = {
 
 // Use strict config by default for testing
 const FALLBACK_CONFIG = 'strict';
-const envOverride = (process.env.CSP_CONFIG as keyof typeof cspConfigs | undefined) ?? FALLBACK_CONFIG;
+const envOverride =
+	(process.env.CSP_CONFIG as keyof typeof cspConfigs | undefined) ?? FALLBACK_CONFIG;
 console.log('detected env', process.env.CSP_CONFIG ?? `fallback:${FALLBACK_CONFIG}`);
 const currentConfig = envOverride in cspConfigs ? cspConfigs[envOverride] : cspConfigs.strict;
 
 export default defineConfig({
-	plugins: [
-		Inspect(),
-		Unplugin(currentConfig),
-	],
+	plugins: [Inspect(), Unplugin(currentConfig)],
 	build: {
 		// Enable source maps for better asset tracking
 		sourcemap: true,

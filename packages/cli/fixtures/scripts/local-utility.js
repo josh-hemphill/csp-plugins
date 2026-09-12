@@ -1,3 +1,3 @@
-function utility () {
+function utility() {
 	return 'utility function';
 }

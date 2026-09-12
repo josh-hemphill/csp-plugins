@@ -1,9 +1,19 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import type { Browser, Page } from 'puppeteer';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $, echo } from 'zx';
+
 import {
 	closeBrowser,
 	createCSPMonitoringPage,
@@ -118,8 +128,8 @@ describe('CSP Integrity and Hash Format Tests', () => {
 		}
 
 		// Summary of findings
-		const invalidHashes = manifest.assets.filter((asset: any) =>
-			!/^sha(256|384|512)-[A-Za-z0-9+/=]+$/.test(asset.hash)
+		const invalidHashes = manifest.assets.filter(
+			(asset: any) => !/^sha(256|384|512)-[A-Za-z0-9+/=]+$/.test(asset.hash),
 		);
 
 		if (invalidHashes.length > 0) {
@@ -254,7 +264,7 @@ describe('CSP Integrity and Hash Format Tests', () => {
 		for (const [algorithm, assets] of hashAlgorithms) {
 			echo(`   ${algorithm}: ${assets.length} assets`);
 			if (assets.length <= 5) {
-				assets.forEach(asset => echo(`     - ${asset}`));
+				assets.forEach((asset) => echo(`     - ${asset}`));
 			} else {
 				echo(`     - ${assets.slice(0, 3).join(', ')}... and ${assets.length - 3} more`);
 			}
@@ -262,7 +272,9 @@ describe('CSP Integrity and Hash Format Tests', () => {
 
 		// Check for consistency issues
 		const hasRawBase64 = hashAlgorithms.has('raw-base64');
-		const hasProperAlgorithms = Array.from(hashAlgorithms.keys()).some(key => key !== 'raw-base64');
+		const hasProperAlgorithms = Array.from(hashAlgorithms.keys()).some(
+			(key) => key !== 'raw-base64',
+		);
 
 		if (hasRawBase64 && hasProperAlgorithms) {
 			echo(`⚠️  MIXED HASH FORMATS DETECTED:`);
@@ -368,10 +380,8 @@ describe('CSP Integrity and Hash Format Tests', () => {
 			} else {
 				echo('✅ No browser errors or violations detected');
 			}
-
 		} finally {
 			server.close();
 		}
 	}, 60000);
 });
-

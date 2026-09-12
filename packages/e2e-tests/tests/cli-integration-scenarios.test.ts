@@ -1,6 +1,15 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $, cd, chalk, echo } from 'zx';
 
@@ -61,7 +70,8 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			const isolatedDir = await buildTestAppInIsolation('full-workflow');
 
 			// Run CLI with full processing
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --verbose`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --verbose`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -140,7 +150,8 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			writeFileSync(strictPolicyPath, JSON.stringify(strictPolicy, null, 2));
 
 			// Run CLI with strict policy
-			const { stdout: strictStdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${strictPolicyPath}`;
+			const { stdout: strictStdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${strictPolicyPath}`;
 
 			expect(strictStdout).toContain('Processing directory:');
 			expect(strictStdout).toContain('CSP processing complete');
@@ -157,7 +168,8 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			writeFileSync(permissivePolicyPath, JSON.stringify(permissivePolicy, null, 2));
 
 			// Run CLI with permissive policy
-			const { stdout: permissiveStdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${permissivePolicyPath}`;
+			const { stdout: permissiveStdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${permissivePolicyPath}`;
 
 			expect(permissiveStdout).toContain('Processing directory:');
 			expect(permissiveStdout).toContain('CSP processing complete');
@@ -189,7 +201,8 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			writeFileSync(customPolicyPath, JSON.stringify(customPolicy, null, 2));
 
 			// Run CLI with custom policy
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${customPolicyPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${customPolicyPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -218,7 +231,8 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			const isolatedDir = await buildTestAppInIsolation('nonce-consistency');
 
 			// First run
-			const { stdout: firstRun } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
+			const { stdout: firstRun } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 			expect(firstRun).toContain('CSP processing complete');
 
 			// Get first run HTML
@@ -230,7 +244,8 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			const newIsolatedDir = await buildTestAppInIsolation('nonce-consistency-2');
 
 			// Second run
-			const { stdout: secondRun } = await $`node ${CLI_PATH} ${newIsolatedDir} --manifests-dir ${newIsolatedDir}/.csp-manifest`;
+			const { stdout: secondRun } =
+				await $`node ${CLI_PATH} ${newIsolatedDir} --manifests-dir ${newIsolatedDir}/.csp-manifest`;
 			expect(secondRun).toContain('CSP processing complete');
 
 			// Get second run HTML
@@ -276,7 +291,8 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			writeFileSync(policyPath, JSON.stringify(cspPolicy, null, 2));
 
 			// Run CLI with policy file to generate headers
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${policyPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${policyPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -327,7 +343,8 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			}
 
 			// Run CLI
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');

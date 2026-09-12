@@ -1,10 +1,12 @@
-import type { Browser, Page } from 'puppeteer';
-import type { CSPValidationResult } from '../src/puppeteer-utils.js';
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import type { Browser, Page } from 'puppeteer';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $, echo } from 'zx';
+
+import type { CSPValidationResult } from '../src/puppeteer-utils.js';
 import {
 	closeBrowser,
 	createCSPMonitoringPage,
@@ -109,21 +111,15 @@ describe('cSP Browser Validation', () => {
 				const ext = filePath.split('.').pop();
 
 				let contentType = 'text/html';
-				if (ext === 'js')
-					contentType = 'application/javascript';
-				else if (ext === 'css')
-					contentType = 'text/css';
-				else if (ext === 'png')
-					contentType = 'image/png';
-				else if (ext === 'svg')
-					contentType = 'image/svg+xml';
-				else if (ext === 'woff2')
-					contentType = 'font/woff2';
+				if (ext === 'js') contentType = 'application/javascript';
+				else if (ext === 'css') contentType = 'text/css';
+				else if (ext === 'png') contentType = 'image/png';
+				else if (ext === 'svg') contentType = 'image/svg+xml';
+				else if (ext === 'woff2') contentType = 'font/woff2';
 
 				res.writeHead(200, { 'Content-Type': contentType });
 				res.end(content);
-			}
-			catch (error) {
+			} catch (error) {
 				res.writeHead(404);
 				res.end('Not found');
 			}
@@ -165,10 +161,11 @@ describe('cSP Browser Validation', () => {
 			// TODO: CSP plugin currently only generates manifests, not HTML transformations
 			// For now, we'll check that the test app builds successfully
 			// In the future, this should validate actual CSP policies in the HTML
-			console.log('Note: CSP plugin currently only generates manifests, not HTML transformations');
+			console.log(
+				'Note: CSP plugin currently only generates manifests, not HTML transformations',
+			);
 			console.log('This test will be updated when HTML transformation is implemented');
-		}
-		finally {
+		} finally {
 			server.close();
 		}
 	}, 60000);
@@ -198,21 +195,15 @@ describe('cSP Browser Validation', () => {
 				const ext = filePath.split('.').pop();
 
 				let contentType = 'text/html';
-				if (ext === 'js')
-					contentType = 'application/javascript';
-				else if (ext === 'css')
-					contentType = 'text/css';
-				else if (ext === 'png')
-					contentType = 'image/png';
-				else if (ext === 'svg')
-					contentType = 'image/svg+xml';
-				else if (ext === 'woff2')
-					contentType = 'font/woff2';
+				if (ext === 'js') contentType = 'application/javascript';
+				else if (ext === 'css') contentType = 'text/css';
+				else if (ext === 'png') contentType = 'image/png';
+				else if (ext === 'svg') contentType = 'image/svg+xml';
+				else if (ext === 'woff2') contentType = 'font/woff2';
 
 				res.writeHead(200, { 'Content-Type': contentType });
 				res.end(content);
-			}
-			catch (error) {
+			} catch (error) {
 				res.writeHead(404);
 				res.end('Not found');
 			}
@@ -242,7 +233,9 @@ describe('cSP Browser Validation', () => {
 			});
 
 			// TODO: CSP plugin currently only generates manifests, not HTML transformations
-			console.log('Note: CSP plugin currently only generates manifests, not HTML transformations');
+			console.log(
+				'Note: CSP plugin currently only generates manifests, not HTML transformations',
+			);
 			console.log('This test will be updated when HTML transformation is implemented');
 
 			// Get any security policy violations
@@ -254,8 +247,7 @@ describe('cSP Browser Validation', () => {
 
 			// Should have no violations if hashes are correct
 			expect(violations).toHaveLength(0);
-		}
-		finally {
+		} finally {
 			server.close();
 		}
 	}, 60000);

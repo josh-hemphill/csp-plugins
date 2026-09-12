@@ -1,7 +1,8 @@
-import type { AssetManifest } from 'packages/shared/src/types.ts';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import type { AssetManifest } from 'packages/shared/src/types.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $, cd, chalk, echo } from 'zx';
 
@@ -146,7 +147,8 @@ describe('complete Build Pipeline Tests', () => {
 			validateBuildOutput(isolatedDir);
 
 			// Run CLI on the built output
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -180,7 +182,8 @@ describe('complete Build Pipeline Tests', () => {
 			validateCspManifest(isolatedDir);
 
 			// Phase 2: Process with CLI using CSP policy file
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --csp-policy-file ${TEST_APP_DIR}/csp-policy.json`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --csp-policy-file ${TEST_APP_DIR}/csp-policy.json`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -253,8 +256,7 @@ describe('complete Build Pipeline Tests', () => {
 			try {
 				const { stdout } = await $`node ${CLI_PATH} ${isolatedDir}`;
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}

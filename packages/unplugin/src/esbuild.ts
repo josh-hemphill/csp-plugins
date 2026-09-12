@@ -1,7 +1,7 @@
-import type { CspPluginOptions } from '@csp-plugins/shared/types';
-import type { Plugin } from 'esbuild';
 import { CommonAssetTracker } from '@csp-plugins/shared/asset-tracker';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
+import type { CspPluginOptions } from '@csp-plugins/shared/types';
+import type { Plugin } from 'esbuild';
 
 /**
  * esbuild plugin for CSP asset tracking
@@ -13,8 +13,7 @@ export default function cspEsbuildPlugin(options: CspPluginOptions = {}): Plugin
 		name: 'csp-esbuild',
 
 		setup(build) {
-			if (!tracker.getOptions().trackAssets)
-				return;
+			if (!tracker.getOptions().trackAssets) return;
 
 			// Track source files
 			build.onLoad({ filter: /\.(js|ts|jsx|tsx|css|scss|sass|less)$/ }, (args) => {

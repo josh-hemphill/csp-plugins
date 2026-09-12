@@ -1,7 +1,7 @@
-import type { CspPluginOptions } from '@csp-plugins/shared/types';
-import type { PluginOption, ViteDevServer } from 'vite';
 import { CommonAssetTracker } from '@csp-plugins/shared/asset-tracker';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
+import type { CspPluginOptions } from '@csp-plugins/shared/types';
+import type { PluginOption, ViteDevServer } from 'vite';
 
 /**
  * Vite plugin for CSP asset tracking and dev server integration
@@ -23,7 +23,11 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): PluginOpt
 
 			// Extract relative output directory name from full path
 			let outputDir = 'dist';
-			if (buildOptions.dir !== undefined && typeof buildOptions.dir === 'string' && buildOptions.dir.length > 0) {
+			if (
+				buildOptions.dir !== undefined &&
+				typeof buildOptions.dir === 'string' &&
+				buildOptions.dir.length > 0
+			) {
 				const parts = buildOptions.dir.split('/');
 				const lastPart = parts[parts.length - 1];
 				if (lastPart && lastPart.length > 0) {
@@ -38,8 +42,10 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): PluginOpt
 			// Track all generated assets
 			for (const [fileName, asset] of Object.entries(bundle)) {
 				if (asset.type === 'asset') {
-					const source = typeof asset.source === 'string' ? asset.source : asset.source.toString();
-					const hash = 'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
+					const source =
+						typeof asset.source === 'string' ? asset.source : asset.source.toString();
+					const hash =
+						'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
 					tracker.trackAsset({
 						id: fileName,
 						path: fileName,
@@ -49,9 +55,9 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): PluginOpt
 						mimeType: asset.type,
 						source,
 					});
-				}
-				else if (asset.type === 'chunk') {
-					const hash = 'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
+				} else if (asset.type === 'chunk') {
+					const hash =
+						'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
 					tracker.trackAsset({
 						id: fileName,
 						path: fileName,
@@ -66,7 +72,9 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): PluginOpt
 
 			// Write manifest
 			const manifest = tracker.generateManifest(outputDir);
-			manifestWriter.writeManifest(manifest).catch((error: unknown) => console.error('Failed to write manifest:', error));
+			manifestWriter
+				.writeManifest(manifest)
+				.catch((error: unknown) => console.error('Failed to write manifest:', error));
 		},
 
 		// Dev server integration
@@ -85,7 +93,11 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): PluginOpt
 				}
 
 				// Track static assets
-				if (url.match(/\.(?:js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|mp4|webm|ogg|mp3|wav)$/)) {
+				if (
+					url.match(
+						/\.(?:js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|otf|mp4|webm|ogg|mp3|wav)$/,
+					)
+				) {
 					tracker.trackAsset({
 						id: url,
 						path: url,
@@ -117,9 +129,9 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): PluginOpt
 			}
 
 			// Clean up old manifests to prevent accumulation
-			manifestWriter?.cleanupBeforeConsolidation().catch((error: unknown) =>
-				console.error('Failed to cleanup manifests:', error),
-			);
+			manifestWriter
+				?.cleanupBeforeConsolidation()
+				.catch((error: unknown) => console.error('Failed to cleanup manifests:', error));
 		},
 	};
 }

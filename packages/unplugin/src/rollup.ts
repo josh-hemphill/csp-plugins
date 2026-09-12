@@ -1,7 +1,7 @@
-import type { CspPluginOptions } from '@csp-plugins/shared/types';
-import type { Plugin } from 'rollup';
 import { CommonAssetTracker } from '@csp-plugins/shared/asset-tracker';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
+import type { CspPluginOptions } from '@csp-plugins/shared/types';
+import type { Plugin } from 'rollup';
 
 /**
  * Rollup plugin for CSP asset tracking
@@ -24,8 +24,10 @@ export default function cspRollupPlugin(options: CspPluginOptions = {}): Plugin 
 			// Track all generated assets
 			for (const [fileName, asset] of Object.entries(bundle)) {
 				if (asset.type === 'asset') {
-					const source = typeof asset.source === 'string' ? asset.source : asset.source.toString();
-					const hash = 'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
+					const source =
+						typeof asset.source === 'string' ? asset.source : asset.source.toString();
+					const hash =
+						'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
 					tracker.trackAsset({
 						id: fileName,
 						path: fileName,
@@ -35,9 +37,9 @@ export default function cspRollupPlugin(options: CspPluginOptions = {}): Plugin 
 						mimeType: asset.type,
 						source,
 					});
-				}
-				else if (asset.type === 'chunk') {
-					const hash = 'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
+				} else if (asset.type === 'chunk') {
+					const hash =
+						'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
 					tracker.trackAsset({
 						id: fileName,
 						path: fileName,
@@ -52,7 +54,9 @@ export default function cspRollupPlugin(options: CspPluginOptions = {}): Plugin 
 
 			// Write manifest
 			const manifest = tracker.generateManifest(outputDir);
-			manifestWriter.writeManifest(manifest).catch((error: unknown) => console.error('Failed to write manifest:', error));
+			manifestWriter
+				.writeManifest(manifest)
+				.catch((error: unknown) => console.error('Failed to write manifest:', error));
 		},
 
 		// Track inline assets
@@ -62,7 +66,12 @@ export default function cspRollupPlugin(options: CspPluginOptions = {}): Plugin 
 			}
 
 			// Track inline scripts and styles
-			if (id.endsWith('.js') || id.endsWith('.ts') || id.endsWith('.jsx') || id.endsWith('.tsx')) {
+			if (
+				id.endsWith('.js') ||
+				id.endsWith('.ts') ||
+				id.endsWith('.jsx') ||
+				id.endsWith('.tsx')
+			) {
 				tracker.trackAsset({
 					id,
 					path: id,
@@ -70,8 +79,12 @@ export default function cspRollupPlugin(options: CspPluginOptions = {}): Plugin 
 					inline: true,
 					source: code,
 				});
-			}
-			else if (id.endsWith('.css') || id.endsWith('.scss') || id.endsWith('.sass') || id.endsWith('.less')) {
+			} else if (
+				id.endsWith('.css') ||
+				id.endsWith('.scss') ||
+				id.endsWith('.sass') ||
+				id.endsWith('.less')
+			) {
 				tracker.trackAsset({
 					id,
 					path: id,
@@ -87,7 +100,9 @@ export default function cspRollupPlugin(options: CspPluginOptions = {}): Plugin 
 		// Cleanup
 		closeBundle() {
 			// Optional: cleanup old manifests
-			manifestWriter.cleanupOldManifests().catch((error: unknown) => console.error('Failed to cleanup manifests:', error));
+			manifestWriter
+				.cleanupOldManifests()
+				.catch((error: unknown) => console.error('Failed to cleanup manifests:', error));
 		},
 	};
 }

@@ -1,6 +1,15 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $, cd, chalk, echo } from 'zx';
 
@@ -63,8 +72,7 @@ describe('cLI Integration Tests', () => {
 				expect(stdout).toContain('CSP Post-Build Processor');
 				expect(stdout).toContain('Usage: csp-process [options] <input-directory>');
 				expect(stdout).toContain('--help, -h');
-			}
-			catch (error) {
+			} catch (error) {
 				// If CLI exits with help, that's expected
 				expect(error).toBeDefined();
 			}
@@ -74,7 +82,8 @@ describe('cLI Integration Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('basic-functionality');
 
 			// Run CLI on isolated output
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -108,7 +117,8 @@ describe('cLI Integration Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('no-headers-test');
 
 			// Run CLI with --no-headers flag
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-headers`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-headers`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -130,7 +140,8 @@ describe('cLI Integration Tests', () => {
 			const isolatedDir = await buildTestAppInIsolation('no-html-test');
 
 			// Run CLI with --no-html flag
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-html`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest --no-html`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -161,7 +172,8 @@ describe('cLI Integration Tests', () => {
 			writeFileSync(customManifestPath, JSON.stringify(customManifest, null, 2));
 
 			// Run CLI with custom manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${customManifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${customManifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -203,7 +215,8 @@ describe('cLI Integration Tests', () => {
 			writeFileSync(largeManifestPath, JSON.stringify(largeManifest, null, 2));
 
 			// Run CLI with large manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${largeManifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${largeManifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -222,11 +235,11 @@ describe('cLI Integration Tests', () => {
 
 			// Run CLI with invalid manifest - should handle gracefully
 			try {
-				const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${invalidManifestPath}`;
+				const { stdout } =
+					await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${invalidManifestPath}`;
 				// If it doesn't crash, that's good
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}

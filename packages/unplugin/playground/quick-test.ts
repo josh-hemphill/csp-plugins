@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
-/* eslint-disable antfu/no-top-level-await */
 
 import { existsSync, readdirSync } from 'node:fs';
 import { exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
+
 import 'zx/globals';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(new URL(import.meta.url)));
@@ -37,8 +37,7 @@ async function checkDependencies(): Promise<void> {
 	if (!existsSync(path.join(SCRIPT_DIR, 'node_modules'))) {
 		echo(colors.blue('📦 Installing dependencies...'));
 		await $`cd ${SCRIPT_DIR} && pnpm install`;
-	}
-	else {
+	} else {
 		echo(colors.green('✅ Dependencies already installed'));
 	}
 }
@@ -53,8 +52,7 @@ async function testBuild(): Promise<boolean> {
 		await $`cd ${SCRIPT_DIR} && pnpm build`;
 		echo(colors.green('✅ Build successful'));
 		return true;
-	}
-	catch {
+	} catch {
 		echo(colors.red('❌ Build failed'));
 		return false;
 	}
@@ -66,7 +64,11 @@ async function testBuild(): Promise<boolean> {
 function checkCspManifests(): void {
 	echo(colors.blue('📋 Checking CSP manifests...'));
 
-	const manifestDirs = ['.csp-manifest-strict', '.csp-manifest-permissive', '.csp-manifest-minimal'];
+	const manifestDirs = [
+		'.csp-manifest-strict',
+		'.csp-manifest-permissive',
+		'.csp-manifest-minimal',
+	];
 
 	for (const dir of manifestDirs) {
 		const dirPath = path.join(SCRIPT_DIR, dir);
@@ -76,8 +78,7 @@ function checkCspManifests(): void {
 			// Count manifest files
 			const manifestFiles = findFiles(dirPath, '*.json');
 			echo(`   📄 ${manifestFiles.length} manifest files`);
-		}
-		else {
+		} else {
 			echo(colors.red(`❌ ${dir} not found`));
 		}
 	}
@@ -94,8 +95,7 @@ function checkDistDirectory(): void {
 		// Count built assets
 		const assets = findFiles(distPath, '*');
 		echo(`   📁 ${assets.length} built assets`);
-	}
-	else {
+	} else {
 		echo(colors.red('❌ Dist directory not found'));
 	}
 }
@@ -107,8 +107,7 @@ function findFiles(dir: string, pattern: string): string[] {
 	const files: string[] = [];
 
 	function scan(currentDir: string): void {
-		if (!existsSync(currentDir))
-			return;
+		if (!existsSync(currentDir)) return;
 
 		const entries = readdirSync(currentDir, { withFileTypes: true });
 
@@ -117,8 +116,7 @@ function findFiles(dir: string, pattern: string): string[] {
 
 			if (entry.isDirectory()) {
 				scan(fullPath);
-			}
-			else if (entry.isFile()) {
+			} else if (entry.isFile()) {
 				// Simple pattern matching (could be enhanced with glob)
 				if (pattern === '*' || entry.name.includes(pattern.replace('*', ''))) {
 					files.push(fullPath);
@@ -139,8 +137,8 @@ function showNextSteps(): void {
 	echo(colors.green('🎉 Quick test completed successfully!'));
 	echo('');
 	echo(colors.bold('Next steps:'));
-	echo('  • Run \'pnpm test:run\' for full test suite');
-	echo('  • Run \'pnpm dev\' for development mode');
+	echo("  • Run 'pnpm test:run' for full test suite");
+	echo("  • Run 'pnpm dev' for development mode");
 	echo('  • Check generated manifests in .csp-manifest-* directories');
 }
 
@@ -161,7 +159,7 @@ async function main(): Promise<void> {
 		await checkDependencies();
 
 		// Test build
-		if (!await testBuild()) {
+		if (!(await testBuild())) {
 			exit(1);
 		}
 
@@ -173,8 +171,7 @@ async function main(): Promise<void> {
 
 		// Show next steps
 		showNextSteps();
-	}
-	catch (error) {
+	} catch (error) {
 		echo(colors.red('❌ Error:'), error);
 		exit(1);
 	}

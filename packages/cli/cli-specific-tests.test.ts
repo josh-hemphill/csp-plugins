@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { $ } from 'zx';
 
@@ -80,8 +81,7 @@ describe('cLI Specific Functionality Tests', () => {
 			try {
 				const { stdout } = await $`node ${CLI_PATH} --help`;
 				expect(stdout).toContain('CSP Post-Build Processor');
-			}
-			catch (error) {
+			} catch (error) {
 				// CLI might exit with help, which is expected
 				expect(error).toBeDefined();
 			}
@@ -102,7 +102,8 @@ describe('cLI Specific Functionality Tests', () => {
 			writeFileSync(customManifestPath, JSON.stringify(customManifest, null, 2));
 
 			// Run CLI with custom manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${customManifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${customManifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -133,7 +134,8 @@ describe('cLI Specific Functionality Tests', () => {
 			mkdirSync(outputDir, { recursive: true });
 
 			// Run CLI with separate output directory
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --output-dir ${outputDir} --auto-manifest`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --output-dir ${outputDir} --auto-manifest`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -177,7 +179,8 @@ describe('cLI Specific Functionality Tests', () => {
 			writeFileSync(largeManifestPath, JSON.stringify(largeManifest, null, 2));
 
 			// Run CLI with large manifest
-			const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${largeManifestPath}`;
+			const { stdout } =
+				await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${largeManifestPath}`;
 
 			expect(stdout).toContain('Processing directory:');
 			expect(stdout).toContain('CSP processing complete');
@@ -211,11 +214,11 @@ describe('cLI Specific Functionality Tests', () => {
 
 			// Run CLI with invalid manifest - should handle gracefully
 			try {
-				const { stdout } = await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${invalidManifestPath}`;
+				const { stdout } =
+					await $`node ${CLI_PATH} ${isolatedDir} --auto-manifest --csp-policy-file ${invalidManifestPath}`;
 				// If it doesn't crash, that's good
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}
@@ -289,8 +292,7 @@ describe('cLI Specific Functionality Tests', () => {
 				const { stdout } = await $`node ${CLI_PATH} ${isolatedDir}`;
 				// If it doesn't crash, that's good
 				expect(stdout).toBeDefined();
-			}
-			catch (error) {
+			} catch (error) {
 				// If it crashes with an error, that's also acceptable as long as it's handled gracefully
 				expect(error).toBeDefined();
 			}

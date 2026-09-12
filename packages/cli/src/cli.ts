@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 
-import type { CSPProcessorOptions } from '@csp-plugins/core';
-import type { AssetManifest } from '@csp-plugins/shared/types';
-import type { CspDirectives } from '@csp-plugins/typed-directives';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import process from 'node:process';
+
 import { SimpleFilesystemCache } from '@csp-plugins/basic-fscache';
+import type { CSPProcessorOptions } from '@csp-plugins/core';
 import { CSPProcessor, deepMerge, generateHash } from '@csp-plugins/core';
 import { CommonAssetTracker } from '@csp-plugins/shared/asset-tracker';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
+import type { AssetManifest } from '@csp-plugins/shared/types';
+import type { CspDirectives } from '@csp-plugins/typed-directives';
 import log from 'loglevel';
+
 import { firstLengthyString } from './cli-utils.ts';
 
 /**
@@ -75,14 +77,21 @@ export class CliProcessor {
 		// Resolve outputDir to absolute path if it's relative
 		// Always resolve relative to the input directory to avoid path issues
 		let resolvedOutputDir: string | undefined;
-		if (options.outputDir !== undefined && options.outputDir !== null && options.outputDir.trim() !== '') {
-			if (options.outputDir.startsWith('./') || options.outputDir.startsWith('../') || !options.outputDir.startsWith('/')) {
+		if (
+			options.outputDir !== undefined &&
+			options.outputDir !== null &&
+			options.outputDir.trim() !== ''
+		) {
+			if (
+				options.outputDir.startsWith('./') ||
+				options.outputDir.startsWith('../') ||
+				!options.outputDir.startsWith('/')
+			) {
 				// Relative path - resolve relative to input directory
 				// If input directory is '.', resolve relative to current working directory
 				if (options.inputDir === '.') {
 					resolvedOutputDir = resolve(options.outputDir);
-				}
-				else {
+				} else {
 					resolvedOutputDir = resolve(options.inputDir, options.outputDir);
 				}
 
@@ -91,8 +100,7 @@ export class CliProcessor {
 				log.debug(`Input directory: ${options.inputDir}`);
 				log.debug(`Output directory: ${options.outputDir}`);
 				log.debug(`Resolved output directory: ${resolvedOutputDir}`);
-			}
-			else {
+			} else {
 				// Absolute path - use as is
 				resolvedOutputDir = options.outputDir;
 			}
@@ -104,7 +112,10 @@ export class CliProcessor {
 			manifestsDir,
 			processHTML: true,
 			generateHeaders: true,
-			headersOutput: options.generateHeaders !== false ? (options.headersOutput ?? join(options.inputDir, 'csp-headers.json')) : undefined,
+			headersOutput:
+				options.generateHeaders !== false
+					? (options.headersOutput ?? join(options.inputDir, 'csp-headers.json'))
+					: undefined,
 			logLevel: options.logLevel ?? 'info', // Default to info level
 			...options,
 			cspOptions: {
@@ -203,13 +214,14 @@ export class CliProcessor {
 
 			// Only log detailed manifest info in verbose mode
 			if (manifests.length > 1) {
-				log.info(`Loaded consolidated CSP manifest with ${this.manifest.assets.length} total assets from ${manifests.length} build tools`);
+				log.info(
+					`Loaded consolidated CSP manifest with ${this.manifest.assets.length} total assets from ${manifests.length} build tools`,
+				);
 			}
 
 			// Copy consolidated manifest to output directory as manifest.json
 			// await this.copyManifestToOutput();
-		}
-		catch (error) {
+		} catch (error) {
 			log.warn(`Could not load CSP manifests: ${String(error)}`);
 
 			// If auto-manifest is enabled, try to generate one as fallback
@@ -252,7 +264,9 @@ export class CliProcessor {
 	/**
 	 * Load CSP policies from a JSON file
 	 */
-	private async loadCspPoliciesFromFile(filePath: string): Promise<Partial<CspDirectives> | undefined> {
+	private async loadCspPoliciesFromFile(
+		filePath: string,
+	): Promise<Partial<CspDirectives> | undefined> {
 		try {
 			const content = await readFile(filePath, 'utf-8');
 			const policies = JSON.parse(content) as unknown;
@@ -265,8 +279,7 @@ export class CliProcessor {
 
 			console.warn(`Invalid CSP policy file format in: ${filePath}`);
 			return undefined;
-		}
-		catch (error) {
+		} catch (error) {
 			console.warn(`Could not load CSP policies from ${filePath}: ${String(error)}`);
 			return undefined;
 		}
@@ -328,7 +341,11 @@ export class CliProcessor {
 			// Load CSP policies from file if specified, otherwise use defaults
 			let baseDirectives: Partial<CspDirectives> | undefined;
 
-			if (this.options.cspPolicyFile !== undefined && this.options.cspPolicyFile !== null && this.options.cspPolicyFile !== '') {
+			if (
+				this.options.cspPolicyFile !== undefined &&
+				this.options.cspPolicyFile !== null &&
+				this.options.cspPolicyFile !== ''
+			) {
 				baseDirectives = await this.loadCspPoliciesFromFile(this.options.cspPolicyFile);
 			}
 
@@ -354,8 +371,7 @@ export class CliProcessor {
 			this.mergeManifestOptions();
 
 			log.info(`Generated auto-manifest with ${manifest.assets.length} assets`);
-		}
-		catch (error) {
+		} catch (error) {
 			log.warn(`Could not generate auto-manifest: ${String(error)}`);
 			this.manifest = null;
 		}
@@ -364,7 +380,10 @@ export class CliProcessor {
 	/**
 	 * Recursively scan directory for assets (used for auto-manifest generation)
 	 */
-	private async scanDirectoryForAssets(dirPath: string, assetTracker: CommonAssetTracker): Promise<void> {
+	private async scanDirectoryForAssets(
+		dirPath: string,
+		assetTracker: CommonAssetTracker,
+	): Promise<void> {
 		try {
 			const entries = await readdir(dirPath, { withFileTypes: true });
 
@@ -374,14 +393,15 @@ export class CliProcessor {
 
 				if (entry.isDirectory()) {
 					// Skip hidden directories and common asset directories
-					if (entry.name.startsWith('.')
-						|| entry.name === 'node_modules'
-						|| entry.name === '.git') {
+					if (
+						entry.name.startsWith('.') ||
+						entry.name === 'node_modules' ||
+						entry.name === '.git'
+					) {
 						continue;
 					}
 					await this.scanDirectoryForAssets(fullPath, assetTracker);
-				}
-				else if (entry.isFile()) {
+				} else if (entry.isFile()) {
 					// Track the asset
 					const ext = entry.name.toLowerCase().split('.').pop() ?? '';
 					try {
@@ -399,7 +419,11 @@ export class CliProcessor {
 
 							// Add discovered external resources to the asset tracker
 							for (const scriptSrc of analysis.analysis.scriptSources) {
-								if (scriptSrc.src && !scriptSrc.src.startsWith('data:') && !scriptSrc.src.startsWith('blob:')) {
+								if (
+									scriptSrc.src &&
+									!scriptSrc.src.startsWith('data:') &&
+									!scriptSrc.src.startsWith('blob:')
+								) {
 									assetTracker.trackAsset({
 										id: scriptSrc.src,
 										path: scriptSrc.src,
@@ -413,7 +437,11 @@ export class CliProcessor {
 							}
 
 							for (const styleSrc of analysis.analysis.styleSources) {
-								if (styleSrc.src && !styleSrc.src.startsWith('data:') && !styleSrc.src.startsWith('blob:')) {
+								if (
+									styleSrc.src &&
+									!styleSrc.src.startsWith('data:') &&
+									!styleSrc.src.startsWith('blob:')
+								) {
 									assetTracker.trackAsset({
 										id: styleSrc.src,
 										path: styleSrc.src,
@@ -427,7 +455,11 @@ export class CliProcessor {
 							}
 
 							for (const imgSrc of analysis.analysis.imageSources) {
-								if (imgSrc.src && !imgSrc.src.startsWith('data:') && !imgSrc.src.startsWith('blob:')) {
+								if (
+									imgSrc.src &&
+									!imgSrc.src.startsWith('data:') &&
+									!imgSrc.src.startsWith('blob:')
+								) {
 									assetTracker.trackAsset({
 										id: imgSrc.src,
 										path: imgSrc.src,
@@ -451,8 +483,7 @@ export class CliProcessor {
 							mimeType: this.getMimeType(ext),
 							source,
 						});
-					}
-					catch {
+					} catch {
 						// Skip files that can't be read
 						assetTracker.trackAsset({
 							id: relativePath,
@@ -466,8 +497,7 @@ export class CliProcessor {
 					}
 				}
 			}
-		}
-		catch (error) {
+		} catch (error) {
 			console.warn(`Error scanning directory ${dirPath}:`, error);
 		}
 	}
@@ -527,8 +557,7 @@ export class CliProcessor {
 			// Write the consolidated manifest to the output directory as manifest.json
 			await writeFile(outputManifestPath, JSON.stringify(this.manifest, null, 2), 'utf-8');
 			console.log(`Copied consolidated manifest to output directory: ${outputManifestPath}`);
-		}
-		catch (error) {
+		} catch (error) {
 			console.warn(`Could not copy manifest to output directory: ${String(error)}`);
 		}
 	}
@@ -539,8 +568,7 @@ export class CliProcessor {
 	private async ensureDirectoryExists(dirPath: string): Promise<void> {
 		try {
 			await readdir(dirPath);
-		}
-		catch {
+		} catch {
 			// Directory doesn't exist, create it
 			await mkdir(dirPath, { recursive: true });
 		}
@@ -549,7 +577,10 @@ export class CliProcessor {
 	/**
 	 * Get cache statistics
 	 */
-	async getCacheStats(): Promise<{ size: number; entries: Array<{ url: string; timestamp: number; sourceType: string }> }> {
+	async getCacheStats(): Promise<{
+		size: number;
+		entries: Array<{ url: string; timestamp: number; sourceType: string }>;
+	}> {
 		return this.cspProcessor.getCacheStats();
 	}
 
@@ -579,7 +610,12 @@ export class CliProcessor {
 		}
 
 		const outputDir = this.options.outputDir;
-		if (outputDir !== undefined && outputDir !== null && outputDir !== '' && outputDir !== this.options.inputDir) {
+		if (
+			outputDir !== undefined &&
+			outputDir !== null &&
+			outputDir !== '' &&
+			outputDir !== this.options.inputDir
+		) {
 			// Copy and process files to output directory
 			await this.copyAndProcessDirectory(this.options.inputDir, outputDir);
 
@@ -588,17 +624,20 @@ export class CliProcessor {
 				try {
 					const srcHeadersPath = this.options.headersOutput;
 					const destHeadersPath = join(outputDir, 'csp-headers.json');
-					if (srcHeadersPath !== undefined && srcHeadersPath !== null && srcHeadersPath !== '' && existsSync(srcHeadersPath)) {
+					if (
+						srcHeadersPath !== undefined &&
+						srcHeadersPath !== null &&
+						srcHeadersPath !== '' &&
+						existsSync(srcHeadersPath)
+					) {
 						await copyFile(srcHeadersPath, destHeadersPath);
 						log.debug(`Copied CSP headers to output directory: ${destHeadersPath}`);
 					}
-				}
-				catch (error) {
+				} catch (error) {
 					log.warn(`Could not copy CSP headers to output directory: ${String(error)}`);
 				}
 			}
-		}
-		else {
+		} else {
 			// Process files in place
 			await this.processDirectoryRecursive(this.options.inputDir);
 		}
@@ -624,7 +663,10 @@ export class CliProcessor {
 			const entries = await readdir(srcDir, { withFileTypes: true });
 
 			// Get the basename of the destination directory to avoid copying it into itself
-			const destDirName = firstLengthyString(destDir.split('/').pop(), destDir.split('\\').pop());
+			const destDirName = firstLengthyString(
+				destDir.split('/').pop(),
+				destDir.split('\\').pop(),
+			);
 
 			for (const entry of entries) {
 				const srcPath = join(srcDir, entry.name);
@@ -635,7 +677,13 @@ export class CliProcessor {
 					continue;
 				}
 				// Skip headers file if headers generation is disabled
-				if (this.options.generateHeaders === false && this.options.headersOutput !== undefined && this.options.headersOutput !== null && this.options.headersOutput !== '' && entry.name === this.options.headersOutput) {
+				if (
+					this.options.generateHeaders === false &&
+					this.options.headersOutput !== undefined &&
+					this.options.headersOutput !== null &&
+					this.options.headersOutput !== '' &&
+					entry.name === this.options.headersOutput
+				) {
 					continue;
 				}
 
@@ -652,16 +700,14 @@ export class CliProcessor {
 					// Create destination directory and copy recursively
 					await this.ensureDirectoryExists(destPath);
 					await this.copyAndProcessDirectory(srcPath, destPath);
-				}
-				else if (entry.isFile()) {
+				} else if (entry.isFile()) {
 					// Copy file to destination
 					await copyFile(srcPath, destPath);
 					// Process the copied file
 					await this.processFile(destPath);
 				}
 			}
-		}
-		catch (error) {
+		} catch (error) {
 			log.warn(`Error copying directory ${srcDir} to ${destDir}: ${String(error)}`);
 		}
 	}
@@ -683,13 +729,11 @@ export class CliProcessor {
 						continue;
 					}
 					await this.processDirectoryRecursive(fullPath);
-				}
-				else if (entry.isFile()) {
+				} else if (entry.isFile()) {
 					await this.processFile(fullPath);
 				}
 			}
-		}
-		catch (error) {
+		} catch (error) {
 			log.warn(`Error processing directory ${dirPath}: ${String(error)}`);
 		}
 	}
@@ -718,18 +762,24 @@ export class CliProcessor {
 
 			if (this.collectedCspBuilder === null) {
 				this.collectedCspBuilder = processedHtml.builder;
-			}
-			else {
-				this.collectedCspBuilder.CSP = deepMerge(this.collectedCspBuilder.CSP as Record<string, unknown>, processedHtml.builder.CSP as Record<string, unknown>);
+			} else {
+				this.collectedCspBuilder.CSP = deepMerge(
+					this.collectedCspBuilder.CSP as Record<string, unknown>,
+					processedHtml.builder.CSP as Record<string, unknown>,
+				);
 			}
 
 			const processedHtmlContent = processedHtml.html;
-			if (processedHtmlContent !== undefined && processedHtmlContent !== null && processedHtmlContent !== '' && processedHtmlContent !== html) {
+			if (
+				processedHtmlContent !== undefined &&
+				processedHtmlContent !== null &&
+				processedHtmlContent !== '' &&
+				processedHtmlContent !== html
+			) {
 				await writeFile(filePath, processedHtmlContent, 'utf-8');
 				log.debug(`Processed HTML file: ${filePath}`);
 			}
-		}
-		catch (error) {
+		} catch (error) {
 			log.warn(`Error processing HTML file ${filePath}: ${String(error)}`);
 		}
 	}
@@ -750,10 +800,13 @@ export class CliProcessor {
 				return;
 			}
 
-			await writeFile(headersOutput, JSON.stringify(this.collectedCspBuilder?.getHeaders(), null, 2), 'utf-8');
+			await writeFile(
+				headersOutput,
+				JSON.stringify(this.collectedCspBuilder?.getHeaders(), null, 2),
+				'utf-8',
+			);
 			log.info(`Generated CSP headers: ${headersOutput}`);
-		}
-		catch (error) {
+		} catch (error) {
 			log.warn(`Error generating CSP headers: ${String(error)}`);
 		}
 	}
@@ -773,8 +826,7 @@ export class CliProcessor {
 			console.log('Cleaning up old manifest files...');
 			await this.manifestWriter.cleanupOldManifests();
 			console.log('Manifest cleanup completed successfully');
-		}
-		catch (error) {
+		} catch (error) {
 			console.error('Failed to cleanup manifests:', error);
 		}
 	}
@@ -883,10 +935,17 @@ Examples:
 	for (let i = args.length - 1; i >= 0; i--) {
 		const arg = args[i];
 		// Skip if this is a flag or a value for a flag
-		if (arg.startsWith('-')
-			|| arg === '--no-html'
-			|| arg === '--no-headers'
-			|| (i > 0 && (args[i - 1] === '--output-dir' || args[i - 1] === '--manifests-dir' || args[i - 1] === '--headers-output' || args[i - 1] === '--csp-policy-file' || args[i - 1] === '--log-level'))) {
+		if (
+			arg.startsWith('-') ||
+			arg === '--no-html' ||
+			arg === '--no-headers' ||
+			(i > 0 &&
+				(args[i - 1] === '--output-dir' ||
+					args[i - 1] === '--manifests-dir' ||
+					args[i - 1] === '--headers-output' ||
+					args[i - 1] === '--csp-policy-file' ||
+					args[i - 1] === '--log-level'))
+		) {
 			continue;
 		}
 		actualInputDir = arg;
@@ -928,8 +987,7 @@ Examples:
 		await processor.loadManifest();
 		await processor.processDirectory();
 		processor.cleanup();
-	}
-	catch (error) {
+	} catch (error) {
 		console.error('Error:', error);
 		process.exit(1);
 	}

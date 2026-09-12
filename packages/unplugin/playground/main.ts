@@ -1,19 +1,19 @@
 // Test various import types and dynamic content
-import './styles.css'
-import testData from './test-data.json'
+import './styles.css';
+import testData from './test-data.json';
 
 // Dynamic import for code splitting
 const loadLazyModule = async () => {
-	const module = await import('./lazy-module.ts')
-	return module.default
-}
+	const module = await import('./lazy-module.ts');
+	return module.default;
+};
 
 // Create dynamic content
 function createDynamicContent() {
-	const app = document.getElementById('app')!
+	const app = document.getElementById('app')!;
 
 	// Test inline styles
-	const styleElement = document.createElement('style')
+	const styleElement = document.createElement('style');
 	styleElement.textContent = `
     .dynamic-style {
       background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
@@ -22,16 +22,16 @@ function createDynamicContent() {
       color: white;
       text-align: center;
     }
-  `
-	document.head.appendChild(styleElement)
+  `;
+	document.head.appendChild(styleElement);
 
 	// Test dynamic script
-	const scriptElement = document.createElement('script')
+	const scriptElement = document.createElement('script');
 	scriptElement.textContent = `
     console.log('Dynamic script loaded');
     window.dynamicScriptData = { timestamp: Date.now() };
-  `
-	document.head.appendChild(scriptElement)
+  `;
+	document.head.appendChild(scriptElement);
 
 	// Create content
 	app.innerHTML = `
@@ -43,18 +43,19 @@ function createDynamicContent() {
         Load Lazy Module
       </button>
     </div>
-  `
+  `;
 }
 
 // Initialize
-createDynamicContent()
+createDynamicContent();
 
 // Test service worker registration
 if ('serviceWorker' in navigator) {
-	navigator.serviceWorker.register('/sw.js')
-		.then(registration => console.log('SW registered:', registration))
-		.catch(error => console.log('SW registration failed:', error))
+	navigator.serviceWorker
+		.register('/sw.js')
+		.then((registration) => console.log('SW registered:', registration))
+		.catch((error) => console.log('SW registration failed:', error));
 }
 
 // Export for testing
-export { createDynamicContent, loadLazyModule }
+export { createDynamicContent, loadLazyModule };
