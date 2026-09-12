@@ -50,7 +50,7 @@ A developer can add one plugin (or one CLI invocation) and get a **strict** Cont
   - `@csp-plugins/typed-directives` already maps typed directives to `CspDirectiveHeaders`.
   - `@csp-plugins/core` already parses HTML, hashes/nonces, injects `<meta>`, and can hash externals.
   - CLI already writes `csp-headers.json`. Bundler plugins only write `.csp-manifest`.
-  - Vite injects a CSP meta tag and writes `csp-headers.json`. Manifest hashes are `sha256-<base64>`. CLI auto-manifest still allows `'unsafe-inline'` until Area 4.
+  - Vite injects a CSP meta tag and writes `csp-headers.json`. Manifest hashes are `sha256-<base64>`. CLI auto-manifest uses `'self'` (no `'unsafe-inline'`) until a policy file opts in.
 
 ## Stack graph
 
@@ -150,6 +150,7 @@ interface CspPluginOptions {
 
 ### Area 4: CLI uses the same contract
 
+  - Status: **done on this line** — auto-manifest defaults to `'self'` (plus processor hashes/nonces). `'unsafe-inline'` is only present when a `--csp-policy-file` (or explicit `baseDirectives`) opts in.
   - Goal: `csp-cli dist/` remains the post-build path for non-Vite tools. Auto-manifest no longer injects `'unsafe-inline'`.
   - Depends on: Area 2
   - Out of scope: new host formats (Area 5)

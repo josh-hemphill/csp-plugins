@@ -353,8 +353,8 @@ export class CliProcessor {
 			if (!baseDirectives) {
 				baseDirectives = {
 					CSP: {
-						'script-src': ['self', 'unsafe-inline'],
-						'style-src': ['self', 'unsafe-inline'],
+						'script-src': ['self'],
+						'style-src': ['self'],
 						'img-src': ['self', 'data:', 'https:'],
 						'font-src': ['self', 'data:', 'https:'],
 						'connect-src': ['self'],

@@ -129,14 +129,16 @@ When using `--auto-manifest`, you can provide a JSON file with CSP policies:
 ```json
 {
  "CSP": {
-  "script-src": ["self", "unsafe-inline"],
-  "style-src": ["self", "unsafe-inline"],
+  "script-src": ["self"],
+  "style-src": ["self"],
   "img-src": ["self", "data:", "https:"],
   "font-src": ["self", "data:", "https:"],
   "connect-src": ["self"]
  }
 }
 ```
+
+`'unsafe-inline'` / `'unsafe-eval'` are not part of the auto-manifest default. Add them only when a policy file opts in (for example a development policy).
 
 ### Directory Structure
 
@@ -220,8 +222,8 @@ const reportPath = await utils.generateReport('dist/');
  "cspProcessorOptions": {
   "baseDirectives": {
    "CSP": {
-    "script-src": ["self", "unsafe-inline"],
-    "style-src": ["self", "unsafe-inline"]
+    "script-src": ["self"],
+    "style-src": ["self"]
    }
   }
  }
