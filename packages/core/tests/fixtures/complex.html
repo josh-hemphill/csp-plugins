@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta
+		http-equiv="Content-Security-Policy"
+		content="default-src 'self'"
+	>
+	<meta
+		name="viewport"
+		content="width=device-width, initial-scale=1.0"
+	>
+	<title>Complex Test Page</title>
+	<link
+		rel="stylesheet"
+		href="https://cdn.example.com/styles.css"
+	>
+	<link
+		rel="preload"
+		href="/fonts/custom.woff2"
+		as="font"
+		type="font/woff2"
+		crossorigin
+	>
+	<style>
+		.header {
+			background: #f0f0f0;
+		}
+
+		.footer {
+			margin-top: 2rem;
+		}
+	</style>
+	<script src="https://cdn.example.com/lib.js"></script>
+</head>
+
+<body>
+	<header class="header">
+		<h1>Complex Test Page</h1>
+		<img
+			src="/images/logo.png"
+			alt="Logo"
+		>
+	</header>
+
+	<main>
+		<p>This page has multiple resources for testing.</p>
+		<img
+			src="https://cdn.example.com/image.jpg"
+			alt="External image"
+		>
+
+		<style>
+			.inline-style {
+				color: red;
+			}
+		</style>
+
+		<script>
+			const config = { debug: true };
+			console.log('First inline script', config);
+		</script>
+
+		<script type="text/javascript">
+			function handleClick () {
+				alert('Button clicked!');
+			}
+		</script>
+	</main>
+
+	<footer class="footer">
+		<script src="/js/analytics.js"></script>
+		<script>
+			// Analytics initialization
+			analytics.init();
+		</script>
+	</footer>
+</body>
+
+</html>

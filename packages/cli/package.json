@@ -1,0 +1,37 @@
+{
+	"name": "@csp-plugins/cli",
+	"type": "module",
+	"version": "0.0.0",
+	"private": true,
+	"main": "dist/cli.mjs",
+	"types": "dist/cli.d.ts",
+	"bin": {
+		"csp-cli": "dist/cli.mjs"
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "obuild",
+		"dev": "obuild --watch",
+		"test": "vitest run",
+		"test:run": "vitest run",
+		"test:watch": "vitest --watch",
+		"test:coverage": "vitest --coverage"
+	},
+	"dependencies": {
+		"@csp-plugins/basic-fscache": "workspace:*",
+		"@csp-plugins/core": "workspace:*",
+		"@csp-plugins/shared": "workspace:*",
+		"@csp-plugins/typed-directives": "workspace:*",
+		"@csp-plugins/unplugin": "workspace:*",
+		"loglevel": "catalog:logging"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:types",
+		"obuild": "catalog:build",
+		"tsx": "catalog:dev",
+		"typescript": "catalog:build",
+		"vitest": "catalog:test"
+	}
+}

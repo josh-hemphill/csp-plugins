@@ -1,0 +1,52 @@
+{
+	"name": "@csp-plugins/core",
+	"type": "module",
+	"version": "0.1.0",
+	"description": "Core utilities for CSP plugins",
+	"license": "MIT",
+	"homepage": "https://github.com/josh-hemphill/csp-plugins/packages/core#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/josh-hemphill/csp-plugins.git"
+	},
+	"bugs": {
+		"url": "https://github.com/josh-hemphill/csp-plugins/issues"
+	},
+	"exports": {
+		".": {
+			"import": "./dist/index.mjs"
+		},
+		"./*": {
+			"import": "./dist/*.mjs"
+		}
+	},
+	"main": "./dist/index.mjs",
+	"engines": {
+		"node": ">=19"
+	},
+	"scripts": {
+		"build": "obuild",
+		"test": "pnpm run \"/test:/\"",
+		"test::unit": "vitest run",
+		"test::lint": "eslint lib/**/*.ts",
+		"test::markdown": "markdownlint-cli2 \"**/*.md\" \"#**/node_modules\" \"#CHANGELOG.md\" --config ../../.markdownlint.json",
+		"test::spelling": "cspell --config ../../.vscode/cSpell.json \"{README.md,.github/*.md,lib/**/*.ts,docs/**/*.md}\"",
+		"watch:test": "vitest run --watch"
+	},
+	"dependencies": {
+		"@csp-plugins/typed-directives": "workspace:*",
+		"cheerio": "catalog:parsing",
+		"dom-serializer": "catalog:parsing",
+		"domhandler": "catalog:parsing",
+		"domutils": "catalog:parsing",
+		"htmlparser2": "catalog:parsing"
+	},
+	"devDependencies": {
+		"cspell": "catalog:dev",
+		"eslint": "catalog:dev",
+		"gh-pages": "catalog:dev",
+		"markdownlint-cli2": "catalog:dev",
+		"obuild": "catalog:build",
+		"vitest": "catalog:test"
+	}
+}

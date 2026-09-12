@@ -1,0 +1,96 @@
+{
+	"name": "@csp-plugins/typed-directives",
+	"type": "module",
+	"version": "0.1.0",
+	"description": "Provides type information for all CSP directives and related headers' directives; as well as a basic utility funtion that helps convert the typed properties to the header content's policy string.",
+	"author": {
+		"name": "Joshua Hemphill",
+		"email": "jhemphill@tecnicocorp.com",
+		"url": "https://joshuahemphill.com"
+	},
+	"license": "MIT",
+	"homepage": "https://github.com/josh-hemphill/csp-typed-directives#readme",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/josh-hemphill/csp-typed-directives.git"
+	},
+	"bugs": {
+		"url": "https://github.com/josh-hemphill/csp-typed-directives/issues"
+	},
+	"keywords": [
+		"CSP",
+		"CSPs",
+		"content-security-policy",
+		"header",
+		"security",
+		"generate",
+		"directive",
+		"types",
+		"typescript"
+	],
+	"exports": {
+		".": {
+			"import": "./dist/index.mjs"
+		},
+		"./csp.types": {
+			"import": "./dist/csp.types.mjs"
+		},
+		"./*": {
+			"import": "./dist/*"
+		}
+	},
+	"main": "./dist/index.mjs",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.mts",
+	"files": [
+		"CHANGELOG.md",
+		"LICENSE",
+		"README.md",
+		"SECURITY.md",
+		"dist",
+		"src"
+	],
+	"scripts": {
+		"dev": "tsx watch --include './src/**/*.ts' obuild.ts",
+		"build": "obuild",
+		"lint": "pnpm run \"/lint:.*/\"",
+		"lint:typescript": "eslint src --ext .ts --fix",
+		"lint:markdown": "markdownlint-cli2-fix \"**/*.md\" \"#**/node_modules\" \"#CHANGELOG.md\" --config ../../.markdownlint.json",
+		"test": "pnpm run \"/test:/\"",
+		"test::lint": "eslint src/**/*.ts",
+		"test::markdown": "markdownlint-cli2 \"**/*.md\" \"#**/node_modules\" \"#CHANGELOG.md\" --config ../../.markdownlint.json",
+		"test::spelling": "cspell --config ../../.vscode/cSpell.json \"{README.md,.github/*.md,src/**/*.ts,docs/**/*.md}\"",
+		"test::unit": "vitest run -c vitest.config.ts --coverage",
+		"watch:test": "vitest watch -c vitest.config.ts",
+		"cov:send": "pnpm build && pnpm test && codecov",
+		"doc": "pnpm doc:html && open-cli build/docs/index.html",
+		"doc:html": "typedoc src/ --exclude **/*.test.ts --target ES6 --mode file --out build/docs",
+		"doc:json": "typedoc src/ --exclude **/*.test.ts --target ES6 --mode file --json build/docs/typedoc.json",
+		"reset-hard": "git clean -dfx && git reset --hard && pnpm i",
+		"ci:validate": "rm -rf node_modules && pnpm ci && pnpm build && pnpm test"
+	},
+	"maintainers": [
+		{
+			"name": "Joshua Hemphill",
+			"email": "jhemphill@tecnicocorp.com",
+			"url": "https://joshuahemphill.com"
+		}
+	],
+	"typings": "./dist/index.d.mts",
+	"devDependencies": {
+		"@types/node": "catalog:types",
+		"@vitest/coverage-v8": "catalog:test",
+		"commitizen": "catalog:dev",
+		"cspell": "catalog:dev",
+		"eslint": "catalog:dev",
+		"gh-pages": "catalog:dev",
+		"markdownlint-cli2": "catalog:dev",
+		"obuild": "catalog:build",
+		"typedoc": "catalog:build",
+		"typescript": "catalog:build",
+		"vitest": "catalog:test"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta
+		name="viewport"
+		content="width=device-width, initial-scale=1.0"
+	>
+	<title>Basic Test Page</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+		}
+
+		.container {
+			max-width: 800px;
+			margin: 0 auto;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="container">
+		<h1>Test Page</h1>
+		<p>This is a test page for CSP processing.</p>
+		<script>
+			console.log('Inline script test');
+			document.addEventListener('DOMContentLoaded', function () {
+				console.log('DOM loaded');
+			});
+		</script>
+	</div>
+</body>
+
+</html>

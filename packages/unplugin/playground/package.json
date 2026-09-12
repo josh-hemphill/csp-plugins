@@ -1,0 +1,22 @@
+{
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"dev": "nodemon -w '../src/**/*.ts' -e .ts -x vite",
+		"build": "vite build",
+		"build-full": "vite build && csp-process dist",
+		"preview": "vite preview",
+		"test": "vitest run",
+		"quick-test": "tsx ./quick-test.ts"
+	},
+	"devDependencies": {
+		"@csp-plugins/basic-fscache": "workspace:*",
+		"@csp-plugins/core": "workspace:*",
+		"@csp-plugins/typed-directives": "workspace:*",
+		"@csp-plugins/unplugin": "workspace:*",
+		"vite": "catalog:plugin-systems",
+		"vite-plugin-inspect": "catalog:plugin-systems",
+		"vitest": "catalog:test",
+		"zx": "catalog:dev"
+	}
+}

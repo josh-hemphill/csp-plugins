@@ -1,0 +1,42 @@
+{
+	"compilerOptions": {
+		"target": "es2022",
+		"lib": [
+			"esnext"
+		],
+		"baseUrl": ".",
+		"rootDir": ".",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"types": [
+			"vitest",
+			"node"
+		],
+		"allowImportingTsExtensions": true,
+		"strict": true,
+		"strictFunctionTypes": true,
+		"strictNullChecks": true,
+		"noUnusedLocals": true,
+		"declaration": true,
+		"emitDeclarationOnly": true,
+		"noEmitOnError": true,
+		"outDir": "dist",
+		"sourceMap": true,
+		"esModuleInterop": true,
+		"skipDefaultLibCheck": true,
+		"skipLibCheck": true
+	},
+	"include": [
+		"packages",
+		"scripts"
+	],
+	"exclude": [
+		"node_modules",
+		"**/**/*.stories.tsx",
+		"**/**/*.md",
+		"**/dist",
+		"packages/.test",
+		"packages/_docs"
+	]
+}

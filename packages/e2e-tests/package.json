@@ -1,0 +1,23 @@
+{
+	"name": "@csp-plugins/e2e-tests",
+	"type": "module",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:output": "tsx run-tests-with-output.ts",
+		"test:keep-output": "KEEP_TEST_OUTPUT=true pnpm test"
+	},
+	"devDependencies": {
+		"@csp-plugins/cli": "workspace:*",
+		"@csp-plugins/core": "workspace:*",
+		"@csp-plugins/shared": "workspace:*",
+		"@csp-plugins/typed-directives": "workspace:*",
+		"@csp-plugins/unplugin": "workspace:*",
+		"puppeteer": "catalog:test",
+		"tsx": "catalog:dev",
+		"vitest": "catalog:test",
+		"zx": "catalog:dev"
+	}
+}

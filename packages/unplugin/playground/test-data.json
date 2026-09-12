@@ -1,0 +1,14 @@
+{
+	"message": "Hello from test data!",
+	"version": "1.0.0",
+	"features": [
+		"asset tracking",
+		"CSP generation",
+		"manifest creation",
+		"dev server integration"
+	],
+	"metadata": {
+		"created": "2024-01-01",
+		"author": "CSP Plugin Test Suite"
+	}
+}

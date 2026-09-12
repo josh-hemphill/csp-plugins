@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+		<!-- Test external stylesheet -->
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+
+		<!-- Test inline styles -->
+		<style>
+			.test-inline-style {
+				color: red;
+				font-weight: bold;
+			}
+		</style>
+
+		<!-- Test external script -->
+		<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
+		<!-- Test inline script -->
+		<script>
+			console.log('Inline script executed');
+			window.inlineScriptData = { message: 'Hello from inline script' };
+		</script>
+		<script type="module" crossorigin src="/index.X194DQU3.js"></script>
+		<link rel="stylesheet" crossorigin href="/index.BWIzNvR-.css">
+	</head>
+	<body>
+		<div id="app"></div>
+
+		<!-- Test image assets -->
+		<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCI+CiAgPHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIGZpbGw9IiNlNzRjM2MiLz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSIzMCIgZmlsbD0iIzM0OThkYiIvPgogIDx0ZXh0IHg9IjUwIiB5PSI2MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiI+VEVTVDwvdGV4dD4KPC9zdmc+Cg==" alt="Test image" />
+		<img src="https://via.placeholder.com/150x150" alt="External image" />
+
+		<!-- Test font -->
+		<link rel="preload" href="data:font/woff2;base64,IyBUaGlzIGlzIGEgcGxhY2Vob2xkZXIgZm9yIGEgV09GRjIgZm9udCBmaWxlCiMgSW4gYSByZWFsIHNjZW5hcmlvLCB0aGlzIHdvdWxkIGJlIGFuIGFjdHVhbCBmb250IGZpbGUKIyBGb3IgdGVzdGluZyBwdXJwb3Nlcywgd2UncmUganVzdCBjcmVhdGluZyB0aGUgZmlsZSBzdHJ1Y3R1cmUK" as="font" type="font/woff2" crossorigin />
+
+		<!-- Test worker -->
+		<script>
+			if ('serviceWorker' in navigator) {
+				navigator.serviceWorker.register('/sw.js');
+			}
+		</script>
+
+		<a
+			href="/__inspect/module?id=./main.ts&index=2"
+			target="_blank"
+			style="text-decoration: none; margin-top: 10px; display: block"
+			>visit /__inspect/ to inspect the intermediate state</a
+		>
+
+	</body>
+</html>

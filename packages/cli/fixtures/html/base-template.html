@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>{{TITLE}}</title>
+		<style>
+			.test-inline-style {
+				color: red;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="app">Test Content</div>
+		<script>
+			console.log('Inline script executed');
+		</script>
+
+		<!-- Script files -->
+		{{SCRIPTS}}
+
+		<!-- Style files -->
+		{{STYLES}}
+
+		<!-- Image files -->
+		{{IMAGES}}
+
+		<!-- Font files -->
+		{{FONTS}}
+	</body>
+</html>

@@ -1,0 +1,24 @@
+name: Stale un-reproduced issues
+on:
+  schedule:
+    - cron: '0 0 * * MON'
+jobs:
+  stale_issues:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      issues: write
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 15
+          days-before-close: 10
+          only-labels: needs info,needs reproduction
+          stale-issue-label: stale
+          stale-issue-message: >
+            This issue has been automatically marked as stale because it has not had
+            recent activity. It will be closed in 10 days if no further information is provided.
+            Thank you for your contributions.
+          close-issue-message: >
+            This issue has been automatically closed because it has not been reproduced or no further
+            information was provided in the allotted time. Thank you for your contributions.

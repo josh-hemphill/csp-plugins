@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<link rel="icon" href="/favicon.ico" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+		<!-- Test external stylesheet -->
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+
+		<!-- Test inline styles -->
+		<style>
+			.test-inline-style {
+				color: red;
+				font-weight: bold;
+			}
+		</style>
+
+		<!-- Test external script -->
+		<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
+		<!-- Test inline script -->
+		<script>
+			console.log('Inline script executed');
+			window.inlineScriptData = { message: 'Hello from inline script' };
+		</script>
+	</head>
+	<body>
+		<div id="app"></div>
+
+		<!-- Test image assets -->
+		<img src="/test-image.svg" alt="Test image" />
+		<img src="https://via.placeholder.com/150x150" alt="External image" />
+
+		<!-- Test font -->
+		<link rel="preload" href="/fonts/test-font.woff2" as="font" type="font/woff2" crossorigin />
+
+		<!-- Test worker -->
+		<script>
+			if ('serviceWorker' in navigator) {
+				navigator.serviceWorker.register('/sw.js');
+			}
+		</script>
+
+		<a
+			href="/__inspect/module?id=./main.ts&index=2"
+			target="_blank"
+			style="text-decoration: none; margin-top: 10px; display: block"
+			>visit /__inspect/ to inspect the intermediate state</a
+		>
+
+		<script type="module" src="./main.ts"></script>
+	</body>
+</html>

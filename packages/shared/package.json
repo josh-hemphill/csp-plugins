@@ -1,0 +1,41 @@
+{
+	"name": "@csp-plugins/shared",
+	"type": "module",
+	"version": "0.1.0",
+	"private": true,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.mjs"
+		},
+		"./types": {
+			"types": "./dist/types.d.ts",
+			"import": "./dist/types.mjs"
+		},
+		"./asset-tracker": {
+			"types": "./dist/asset-tracker.d.ts",
+			"import": "./dist/asset-tracker.mjs"
+		},
+		"./manifest-writer": {
+			"types": "./dist/manifest-writer.d.ts",
+			"import": "./dist/manifest-writer.mjs"
+		},
+		"./post-build-detector": {
+			"types": "./dist/post-build-detector.d.ts",
+			"import": "./dist/post-build-detector.mjs"
+		}
+	},
+	"main": "dist/index.mjs",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "obuild",
+		"dev": "obuild --watch"
+	},
+	"devDependencies": {
+		"obuild": "catalog:build",
+		"typescript": "catalog:build"
+	}
+}

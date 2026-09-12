@@ -1,0 +1,79 @@
+{
+	"expectedManifestStructure": {
+		"buildTool": "vite",
+		"buildTime": "number",
+		"outputDir": "dist",
+		"assets": "array",
+		"cspProcessorOptions": "object"
+	},
+	"expectedAssetStructure": {
+		"id": "string",
+		"path": "string",
+		"type": "string",
+		"inline": "boolean",
+		"hash": "string|undefined",
+		"mimeType": "string|undefined",
+		"source": "string|undefined",
+		"buildTool": "string",
+		"timestamp": "number"
+	},
+	"expectedAssetTypes": [
+		"script",
+		"style",
+		"image",
+		"font",
+		"media",
+		"document",
+		"worker",
+		"other"
+	],
+	"expectedStrictConfig": {
+		"strictMode": true,
+		"reportOnly": false,
+		"includeUnsafeInline": false,
+		"includeUnsafeEval": false
+	},
+	"expectedPermissiveConfig": {
+		"strictMode": false,
+		"reportOnly": true,
+		"includeUnsafeInline": true,
+		"includeUnsafeEval": true
+	},
+	"expectedMinimalConfig": {
+		"trackAssets": true,
+		"generateCsp": false,
+		"devServer": false
+	},
+	"testAssets": {
+		"mainEntry": {
+			"type": "script",
+			"inline": false,
+			"expectedHash": true
+		},
+		"styles": {
+			"type": "style",
+			"inline": false,
+			"expectedHash": true
+		},
+		"testData": {
+			"type": "other",
+			"inline": false,
+			"expectedHash": true
+		},
+		"lazyModule": {
+			"type": "script",
+			"inline": false,
+			"expectedHash": true
+		}
+	},
+	"validationRules": {
+		"allAssetsMustHaveIds": true,
+		"allAssetsMustHavePaths": true,
+		"allAssetsMustHaveTypes": true,
+		"allAssetsMustHaveTimestamps": true,
+		"allAssetsMustHaveBuildTool": true,
+		"scriptAssetsMustHaveMimeType": "application/javascript",
+		"styleAssetsMustHaveMimeType": "text/css",
+		"hashGenerationRequired": "for non-inline assets with source content"
+	}
+}
