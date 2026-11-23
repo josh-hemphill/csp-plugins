@@ -36,6 +36,8 @@ export interface AssetManifest {
 	outputDir: string;
 	/** Absolute path of the output at build time, when available. */
 	outputPath?: string;
+	/** Deployment URL prefix known to the bundler. */
+	publicBase?: string;
 	/** All tracked assets */
 	assets: TrackedAsset[];
 	/** CSP processor options */

@@ -171,7 +171,11 @@ export interface CSPProcessorOptions {
 			nonceGenerator?: CryptoGenerator;
 		};
 		hashing?: ExternalSourceGeneralOptions & {
-			hashGenerator?: (src: string, type: ExternalSourceType) => PromiseLike<string | undefined>;
+			hashGenerator?: (
+				src: string,
+				type: ExternalSourceType,
+				integrity?: string,
+			) => PromiseLike<string | string[] | undefined>;
 			/**
 			 * Enable adding the Integrity attribute to external sources
 			 * @default true
@@ -431,11 +435,21 @@ export class CSPProcessor {
 	}
 
 	/** Enforced policies already supplied by the HTML author. */
-	getMetaPoliciesToPreserve(document: Document, owner: string): string[] {
+	getMetaPoliciesToPreserve(
+		document: Document,
+		owner: string,
+		replaceGenerated = false,
+	): string[] {
 		const head = findOne((element) => element.name === 'head', document.children, true);
 		if (!head) return [];
 		return this.findExistingCSPMetaTags(head)
-			.filter((meta) => meta.attribs['data-csp-plugins'] !== owner)
+			.filter((meta) => {
+				const generator = meta.attribs['data-csp-plugins'];
+				return (
+					generator !== owner &&
+					!(replaceGenerated && (generator === 'vite' || generator === 'cli'))
+				);
+			})
 			.map((meta) => meta.attribs.content?.replace(/[\t\n\r]+/g, ' '))
 			.filter((policy): policy is string => Boolean(policy?.trim()));
 	}
@@ -622,14 +636,14 @@ export class CSPProcessor {
 	 * Find existing CSP meta tags
 	 */
 	private findExistingCSPMetaTags(head: Element): Element[] {
-		return findAll((child) => {
+		return head.children.filter((child): child is Element => {
 			if (child.type === ElementType.Tag && child.name === 'meta') {
 				const meta = child;
 				const httpEquiv = meta.attribs['http-equiv'] || meta.attribs.httpEquiv;
 				return httpEquiv?.toLowerCase() === 'content-security-policy';
 			}
 			return false;
-		}, head.children);
+		});
 	}
 
 	/**
@@ -729,10 +743,14 @@ export class CSPProcessor {
 			}
 			// Add external script hashes
 			if (this.shouldHashExternalSource(scriptSource.src, 'script')) {
-				const result = await this.processExternalSourceForHashing(scriptSource.src, 'script');
+				const result = await this.processExternalSourceForHashing(
+					scriptSource.src,
+					'script',
+					scriptSource.element,
+				);
 				if (result.hash !== undefined) {
 					scriptSource.hash = result.hash;
-					scriptSrc.push(result.hash);
+					scriptSrc.push(...(result.hashes ?? [result.hash]));
 
 					// Add integrity attribute if enabled
 					if (this.options.externalSources.hashing?.integrity && result.hash) {
@@ -764,10 +782,14 @@ export class CSPProcessor {
 			}
 			// Add external style hashes
 			if (this.shouldHashExternalSource(styleSource.src, 'style')) {
-				const result = await this.processExternalSourceForHashing(styleSource.src, 'style');
+				const result = await this.processExternalSourceForHashing(
+					styleSource.src,
+					'style',
+					styleSource.element,
+				);
 				if (result.hash !== undefined) {
 					styleSource.hash = result.hash;
-					styleSrc.push(result.hash);
+					styleSrc.push(...(result.hashes ?? [result.hash]));
 
 					// Add integrity attribute if enabled
 					if (this.options.externalSources.hashing?.integrity && result.hash) {
@@ -1054,16 +1076,27 @@ export class CSPProcessor {
 	private async processExternalSourceForHashing(
 		src: string,
 		type: 'script' | 'style' | 'image' | 'font' | 'other',
-	): Promise<{ hash?: HashSource }> {
+		element?: ChildNode,
+	): Promise<{ hash?: HashSource; hashes?: HashSource[] }> {
 		const externalHashing = this.options.externalSources?.hashing ?? {};
 
 		// Use custom hash generator if provided
 		if (externalHashing.hashGenerator) {
 			try {
-				const hash = await externalHashing.hashGenerator(src, type);
-				return hash === undefined
+				const integrity =
+					element &&
+					'attribs' in element &&
+					!Object.hasOwn(element.attribs, 'data-csp-plugins-integrity')
+						? element.attribs.integrity
+						: undefined;
+				const result = await externalHashing.hashGenerator(src, type, integrity);
+				if (Array.isArray(result)) {
+					const hashes = result.map((hash) => toHashSource(hash, this.options.hashAlgorithm));
+					return { hash: hashes[0], hashes };
+				}
+				return result === undefined
 					? {}
-					: { hash: toHashSource(hash, this.options.hashAlgorithm) };
+					: { hash: toHashSource(result, this.options.hashAlgorithm) };
 			} catch {
 				return {};
 			}

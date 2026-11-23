@@ -120,6 +120,38 @@ export function mergeVercel(
 	return prettyJson(base);
 }
 
+function directoryName(path: string): string {
+	return posix.normalize(path).replace(/\/$/, '') || '/';
+}
+
+export function readStructuredRouting(
+	id: 'vercel' | 'firebase',
+	existing: string,
+	options?: HeaderAdapterOptions,
+): { cleanUrls: boolean; trailingSlash?: boolean } {
+	const parsed: unknown = existing.trim() ? JSON.parse(existing) : {};
+	if (!isRecord(parsed)) throw new Error(`Expected an existing ${id} configuration object`);
+	let site: Record<string, unknown> = parsed;
+	if (id === 'firebase') {
+		updateFirebaseSite(parsed, options, (selected) => {
+			site = selected;
+			return selected;
+		});
+	} else if (
+		options?.publicDir &&
+		typeof parsed.outputDirectory === 'string' &&
+		directoryName(parsed.outputDirectory) !== directoryName(options.publicDir)
+	) {
+		throw new Error(
+			`Vercel publishes ${parsed.outputDirectory} but the selected output directory is ${options.publicDir}`,
+		);
+	}
+	return {
+		cleanUrls: site.cleanUrls === true,
+		trailingSlash: typeof site.trailingSlash === 'boolean' ? site.trailingSlash : undefined,
+	};
+}
+
 function updateFirebaseSite(
 	base: Record<string, unknown>,
 	options: HeaderAdapterOptions | undefined,
@@ -132,7 +164,7 @@ function updateFirebaseSite(
 				? site.target === options.firebaseTarget
 				: options?.publicDir !== undefined &&
 					typeof site.public === 'string' &&
-					posix.normalize(site.public) === posix.normalize(options.publicDir))
+					directoryName(site.public) === directoryName(options.publicDir))
 				? [index]
 				: [],
 		);
@@ -152,7 +184,7 @@ function updateFirebaseSite(
 		options?.publicDir &&
 		site.public !== undefined &&
 		(typeof site.public !== 'string' ||
-			posix.normalize(site.public) !== posix.normalize(options.publicDir))
+			directoryName(site.public) !== directoryName(options.publicDir))
 	) {
 		throw new Error(
 			`Firebase Hosting publishes ${String(site.public)} but the selected output directory is ${options.publicDir}`,

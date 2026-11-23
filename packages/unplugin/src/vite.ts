@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { CSPProcessor, generateHash } from '@csp-plugins/core';
@@ -22,6 +22,7 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 		enableNonces: false,
 	});
 	let config: ResolvedConfig;
+	const verification = new Map<string, Map<string, string | Uint8Array>>();
 
 	return {
 		name: 'csp-vite',
@@ -45,6 +46,8 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 		generateBundle: {
 			order: 'post',
 			async handler(output, bundle, isWrite) {
+				const outputPath = output.dir ?? resolve(config.root, config.build.outDir);
+				const expected = new Map<string, string | Uint8Array>();
 				const base = config.base === './' || config.base === '' ? '/' : config.base;
 				const files = Object.values(bundle);
 				const publicFiles = new Map<string, { name: string; path: string }>();
@@ -54,8 +57,9 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 						withFileTypes: true,
 					});
 					for (const entry of entries) {
-						if (!entry.isFile()) continue;
 						const path = resolve(entry.parentPath, entry.name);
+						if (!entry.isFile() && !(entry.isSymbolicLink() && (await stat(path)).isFile()))
+							continue;
 						const name = relative(config.publicDir, path).split(sep).join('/');
 						publicFiles.set(staticHtmlPath(name, base), { name, path });
 					}
@@ -79,14 +83,21 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 							settings.cspProcessorOptions,
 							async (assetPath) => {
 								const asset = assets.get(assetPath);
-								if (asset?.type === 'chunk') return asset.code;
-								if (asset) return asset.source;
 								const copied = publicFiles.get(assetPath);
-								return copied ? readFile(copied.path) : undefined;
+								const bytes =
+									asset?.type === 'chunk'
+										? asset.code
+										: (asset?.source ??
+											(copied ? await readFile(copied.path) : undefined));
+								const name = asset?.fileName ?? copied?.name;
+								if (bytes !== undefined && name !== undefined) expected.set(name, bytes);
+								return bytes;
 							},
 							'vite',
+							Object.keys(settings.cspProcessorOptions.baseDirectives?.CSP ?? {}).length > 0,
 						);
 						file.source = result.html ?? html;
+						expected.set(file.fileName, file.source);
 						if ('Content-Security-Policy' in result.headers)
 							pageHeaders.set(path, result.headers);
 					}
@@ -99,25 +110,30 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 							? DEFAULT_HEADERS_FILE
 							: settings.emitHeadersFile;
 					const source = `${JSON.stringify(headers, null, 2)}\n`;
+					const destination = resolve(outputPath, fileName);
+					if (
+						files.some((file) => resolve(outputPath, file.fileName) === destination) ||
+						[...publicFiles.values()].some(
+							(file) => resolve(outputPath, file.name) === destination,
+						)
+					)
+						this.error(`CSP header output conflicts with ${fileName}`);
 					if (isAbsolute(fileName)) {
 						if (isWrite) {
 							await mkdir(dirname(fileName), { recursive: true });
 							await writeFile(fileName, source, 'utf8');
 						}
 					} else {
-						if (
-							Object.hasOwn(bundle, fileName) ||
-							publicFiles.has(staticHtmlPath(fileName, base))
-						)
-							this.error(`CSP header output conflicts with ${fileName}`);
 						this.emitFile({ type: 'asset', fileName, source });
 					}
 				}
 
+				if (isWrite) verification.set(outputPath, expected);
 				if (!settings.trackAssets || !isWrite) return;
 				const tracker = new CommonAssetTracker('vite', options);
 				for (const file of files) {
 					const content = file.type === 'chunk' ? file.code : file.source;
+					expected.set(file.fileName, content);
 					const source = typeof content === 'string' ? content : undefined;
 					tracker.trackAsset({
 						id: file.fileName,
@@ -136,21 +152,42 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 				}
 				for (const [path, file] of publicFiles) {
 					if (assets.has(path)) continue;
+					const contents = await readFile(file.path);
+					expected.set(file.name, contents);
 					tracker.trackAsset({
 						id: file.name,
 						path: file.name,
 						type: settings.assetTypeDetector(file.name),
 						inline: false,
-						hash: await generateHash(await readFile(file.path), 'sha256'),
+						hash: await generateHash(contents, 'sha256'),
 					});
 				}
 
 				const writer = new ManifestWriter(resolve(config.root, settings.manifestDir));
-				const outputPath = output.dir ?? resolve(config.root, config.build.outDir);
 				const manifest = await tracker.generateManifest(
 					relative(config.root, outputPath).split(sep).join('/') || '.',
 				);
-				await writer.writeManifest({ ...manifest, outputPath });
+				await writer.writeManifest({
+					...manifest,
+					outputPath,
+					publicBase: staticHtmlPath('', base),
+				});
+			},
+		},
+		writeBundle: {
+			order: 'post',
+			async handler(output) {
+				const outputPath = output.dir ?? resolve(config.root, config.build.outDir);
+				const expected = verification.get(outputPath);
+				if (!expected) return;
+				verification.delete(outputPath);
+				for (const [name, bytes] of expected) {
+					if (!Buffer.from(bytes).equals(await readFile(resolve(outputPath, name)))) {
+						this.error(
+							`A plugin changed ${name} after CSP processing. Register cspVitePlugin after output-modifying plugins.`,
+						);
+					}
+				}
 			},
 		},
 	};

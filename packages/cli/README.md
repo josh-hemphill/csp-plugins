@@ -19,10 +19,11 @@ node /path/to/csp-plugins/packages/cli/dist/cli.mjs dist --no-html --emit vercel
 | Option | Behavior |
 | --- | --- |
 | `--output-dir <directory>` | Copy processed files and publish-directory artifacts there. Relative paths use the current working directory. Start each deployment with a clean output directory. |
+| `--base <path>` | Deployment URL prefix, such as `/site/`. The CLI uses Vite build metadata or a uniquely matching existing route map when available. Defaults to `/`. |
 | `--project-dir <directory>` | Directory for Vercel or Firebase project config and generated rule state. Defaults to the current working directory. |
 | `--headers-output <file>` | Override the JSON destination. Defaults to `csp-headers.json` in the publish directory. |
 | `--no-html` | Analyze HTML and emit headers without rewriting it. Use this for an existing baked policy or inline hashes. |
-| `--replace-existing` | Replace an authored or Vite-generated CSP meta tag. By default the CLI preserves and exports those policies. |
+| `--replace-existing` | Replace an authored or Vite-generated CSP meta tag. By default the CLI preserves and exports those policies. A policy file can replace generated metadata, and replacing an authored policy requires this flag. |
 | `--no-headers` | Skip default JSON generation. Explicit `--emit` choices still apply. |
 | `--local-script-integrity` | Add SRI to resolvable same-site external scripts. Local stylesheet SRI is enabled by default. Hashes use the original file bytes. |
 | `--manifests-dir <directory>` | Directory to load plugin options from. Defaults to `.csp-manifest`. Only manifests for the selected input directory can supply policy options. |
@@ -34,7 +35,7 @@ With a single HTML page, the JSON file is a flat header map. Multi-page sites
 receive a `routes` object keyed by the emitted HTML paths. Meta tags remain
 page-specific in either mode. Browser requests that reach the same HTML via
 custom rewrites or clean URLs need a corresponding deployment header rule.
-Local integrity is derived from files under the static directory. Remote asset
+Local integrity is derived from files under the static directory. A supplied SRI pin must match the file bytes when the corresponding integrity check is enabled. Remote asset
 integrity should be specified explicitly in your markup.
 
 ## Hosting
@@ -43,7 +44,7 @@ integrity should be specified explicitly in your markup.
 | --- | --- | --- |
 | `json` | Publish directory | Per HTML path. |
 | `netlify`, `cloudflare-pages` | Publish directory, `_headers` | Exact HTML paths, clean paths such as `/about`, and directory index aliases such as `/docs/`. Static assets only. |
-| `vercel` | Project directory, `vercel.json` | Exact HTML paths and directory index aliases. A conflicting existing CSP rule stops generation. |
+| `vercel` | Project directory, `vercel.json` | Exact paths, directory indexes, and canonical URLs derived from project settings. A conflicting existing CSP rule or output directory stops generation. |
 | `firebase` | Project directory, `firebase.json` | Exact HTML paths and directory index aliases. An existing multi-site config must have exactly one site matching the publish directory. |
 | `nginx`, `apache`, `caddy`, `express` | Publish directory, server snippet (Express uses an ES module) | One policy per snippet. For distinct routes, use the JSON and attach policies in server configuration. |
 

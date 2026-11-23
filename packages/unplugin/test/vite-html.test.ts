@@ -156,3 +156,42 @@ it('hashes assets copied from Vite public and protects its header file', async (
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+it('rejects absolute header collisions and catches late changes to finalized HTML', async () => {
+	const { rm } = await import('node:fs/promises');
+	const root = await mkdtemp(join(tmpdir(), 'csp-vite-final-'));
+	try {
+		await writeViteApp(root);
+		await expect(
+			build({
+				root,
+				logLevel: 'silent',
+				plugins: [cspVitePlugin({ emitHeadersFile: join(root, 'dist', 'index.html') })],
+			}),
+		).rejects.toThrow(/CSP header output conflicts/);
+		await expect(
+			build({
+				root,
+				logLevel: 'silent',
+				plugins: [
+					cspVitePlugin(),
+					{
+						name: 'late-html-change',
+						enforce: 'post',
+						generateBundle: {
+							order: 'post',
+							handler(_, bundle) {
+								const html = bundle['index.html'];
+								if (html.type === 'asset')
+									html.source =
+										String(html.source) + '<script>console.log("late")</script>';
+							},
+						},
+					},
+				],
+			}),
+		).rejects.toThrow(/after CSP processing/);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

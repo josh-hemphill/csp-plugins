@@ -30,6 +30,8 @@ interface CliOptions {
 	outputDir?: string;
 	/** Directory holding platform project configuration */
 	projectDir?: string;
+	/** Public URL prefix for the static output. */
+	base?: string;
 	/** Cache directory for filesystem cache */
 	cacheDir?: string;
 	/** CSP manifests directory path */
@@ -259,6 +261,7 @@ export class CliProcessor {
 		const collectHeaders = generateHeaders !== false || emit.length > 0;
 		const files = new Map<string, string>();
 		await this.collectFiles(inputDir, outputDir, files);
+		const base = await this.resolvePublicBase(files);
 		if (inputDir !== outputDir) {
 			await this.checkPublishDirectory(outputDir, files);
 		}
@@ -266,7 +269,12 @@ export class CliProcessor {
 		const pages = new Map<string, string>();
 		for (const [dest, source] of files) {
 			if ((processHTML !== false || collectHeaders) && /\.html?$/i.test(source)) {
-				const html = await this.processHTMLFile(source, processHTML !== false, collectHeaders);
+				const html = await this.processHTMLFile(
+					source,
+					base,
+					processHTML !== false,
+					collectHeaders,
+				);
 				if (html !== undefined) pages.set(dest, html);
 			}
 		}
@@ -343,15 +351,61 @@ export class CliProcessor {
 		}
 	}
 
+	private async resolvePublicBase(files: ReadonlyMap<string, string>): Promise<string> {
+		const explicit = this.options.base ?? this.manifest?.publicBase;
+		if (explicit !== undefined) {
+			if (!explicit.startsWith('/') || explicit.startsWith('//') || /[?#\\]/.test(explicit)) {
+				throw new Error('The deployment base must be a URL path such as / or /site/.');
+			}
+			return staticHtmlPath('', explicit.endsWith('/') ? explicit : explicit + '/');
+		}
+		const artifact = join(this.options.inputDir, 'csp-headers.json');
+		if (!existsSync(artifact)) return '/';
+		const previous: unknown = JSON.parse(await readFile(artifact, 'utf8'));
+		if (!previous || typeof previous !== 'object' || !('routes' in previous)) return '/';
+		if (
+			!previous.routes ||
+			typeof previous.routes !== 'object' ||
+			Array.isArray(previous.routes)
+		) {
+			throw new Error('Existing csp-headers.json contains a malformed route map.');
+		}
+		const paths = [...files.values()]
+			.filter((file) => /\.html?$/i.test(file))
+			.map((file) => staticHtmlPath(relative(this.options.inputDir, file).split(sep).join('/')));
+		let candidates: Set<string> | undefined;
+		for (const path of Object.keys(previous.routes)) {
+			const matches = new Set(
+				paths
+					.filter((file) => path.endsWith(file))
+					.map((file) => path.slice(0, -file.length) + '/'),
+			);
+			if (matches.size > 0)
+				candidates = candidates
+					? new Set([...candidates].filter((candidate) => matches.has(candidate)))
+					: matches;
+		}
+		if (candidates?.size === 1) return [...candidates][0];
+		throw new Error(
+			'Could not infer a deployment base from the existing CSP route map. Set --base explicitly.',
+		);
+	}
+
 	private async checkWriteDestinations(paths: Iterable<string>): Promise<void> {
 		const checkedDirectories = new Set<string>();
-		for (const path of paths) {
+		const destinations = new Set(paths);
+		for (const path of destinations) {
 			if (existsSync(path) && !(await lstat(path)).isFile()) {
 				throw new Error(`Cannot write to ${path}. The destination must be a regular file.`);
 			}
 			let parent = dirname(path);
 			while (!checkedDirectories.has(parent)) {
 				checkedDirectories.add(parent);
+				if (destinations.has(parent)) {
+					throw new Error(
+						`Cannot generate both a file at ${parent} and another file inside it.`,
+					);
+				}
 				if (existsSync(parent)) {
 					if (!(await lstat(parent)).isDirectory())
 						throw new Error(`Cannot write to ${path}. ${parent} is not a directory.`);
@@ -364,12 +418,13 @@ export class CliProcessor {
 
 	private async processHTMLFile(
 		source: string,
+		base: string,
 		writeHtml: boolean,
 		collectHeaders: boolean,
 	): Promise<string | undefined> {
 		const inputDir = this.options.inputDir;
 		const sourceRoot = await realpath(inputDir);
-		const path = staticHtmlPath(relative(inputDir, source).split(sep).join('/'));
+		const path = staticHtmlPath(relative(inputDir, source).split(sep).join('/'), base);
 		const html = await readFile(source, 'utf8');
 		const result = await processStaticHtml(
 			html,
@@ -391,8 +446,9 @@ export class CliProcessor {
 			},
 			async (assetPath) => {
 				try {
+					if (!assetPath.startsWith(base)) return undefined;
 					const asset = await realpath(
-						resolve(sourceRoot, '.' + decodeURIComponent(assetPath)),
+						resolve(sourceRoot, './' + decodeURIComponent(assetPath.slice(base.length))),
 					);
 					const contained = relative(sourceRoot, asset);
 					if (contained === '..' || contained.startsWith('..' + sep) || isAbsolute(contained))
@@ -405,6 +461,7 @@ export class CliProcessor {
 				}
 			},
 			'cli',
+			Boolean(this.options.cspPolicyFile),
 		);
 		if (collectHeaders && 'Content-Security-Policy' in result.headers)
 			this.pageHeaders.set(path, result.headers);
@@ -453,7 +510,14 @@ export class CliProcessor {
 			const source = files.get(dest);
 			const fromInput = source && source !== dest ? await readFile(source, 'utf8') : '';
 			const onDisk = existsSync(dest) ? await readFile(dest, 'utf8') : '';
-			if (fromInput.trim() && onDisk.trim() && !onDisk.trim().startsWith(fromInput.trim())) {
+			if (
+				fromInput.trim() &&
+				onDisk.trim() &&
+				!onDisk
+					.replace(/\r\n/g, '\n')
+					.trim()
+					.startsWith(fromInput.replace(/\r\n/g, '\n').trim())
+			) {
 				throw new Error(
 					`Both ${source} and ${dest} contain different configuration. Reconcile them before generating headers.`,
 				);
@@ -518,6 +582,7 @@ Usage: csp-cli [options] <input-directory>
 
 Options:
   --output-dir <dir>        Output directory for processed files
+  --base <path>             Deploy URL prefix (for example /site/)
   --project-dir <dir>       Directory containing vercel.json or firebase.json (default: cwd)
   --manifests-dir <dir>     Directory containing CSP manifest files (default: .csp-manifest)
   --cache-dir <dir>         Cache directory for filesystem cache (default: .csp-cache)
@@ -553,6 +618,7 @@ Examples:
 	const valueOptions = {
 		'output-dir': 'outputDir',
 		'project-dir': 'projectDir',
+		base: 'base',
 		'manifests-dir': 'manifestsDir',
 		'headers-output': 'headersOutput',
 		'cache-dir': 'cacheDir',

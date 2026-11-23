@@ -73,6 +73,7 @@ export class ManifestWriter {
 			contentForHashing.buildTool = manifest.buildTool;
 			contentForHashing.outputDir = manifest.outputDir;
 			contentForHashing.outputPath = manifest.outputPath;
+			contentForHashing.publicBase = manifest.publicBase;
 		}
 
 		const contentString = JSON.stringify(contentForHashing, null, 0);

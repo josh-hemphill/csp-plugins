@@ -21,7 +21,9 @@ A production build adds a CSP meta tag to each bundled HTML entry and emits
 `csp-headers.json` in the output directory. One page produces a flat header map.
 A multi-page build produces a `routes` object keyed by deployed HTML path,
 including the Vite `base`. Set `generateCsp: false` to track assets only,
-`emitHeadersFile: false` to skip JSON, or pass a filename to change it.
+`emitHeadersFile: false` to skip JSON, or pass a filename to change it. Register the plugin after other
+plugins that edit the emitted HTML or assets. Vite disk builds check published
+bytes and fail if a later build hook invalidates the recorded CSP.
 
 Static policies use SHA-256 by default and are reproducible. When serving an
 HTTP policy, select the entry for the requested HTML document. A single policy

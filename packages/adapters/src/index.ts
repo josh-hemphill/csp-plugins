@@ -11,6 +11,7 @@ import {
 	mergeNginx,
 	mergeVercel,
 	prepareStructuredConfig,
+	readStructuredRouting,
 	stringifyAdapterOutput,
 } from './merge.ts';
 import {
@@ -120,15 +121,33 @@ function headerRules(
 	headers: StaticHeaderArtifact | undefined,
 	fallback: string,
 	cleanPaths: boolean,
+	trailingSlash?: boolean,
 ): Map<string, CspDirectiveHeaders> {
 	if (!headers) return new Map();
 	if (!('routes' in headers)) return new Map([[fallback, headers]]);
-	const rules = new Map(Object.entries(headers.routes));
-	for (const [path, value] of rules) {
+	const pages = Object.entries(headers.routes);
+	const rules = new Map(pages);
+	for (const [path, value] of pages) {
 		if (!/^\/[\w.%/-]*$/.test(path)) throw new Error(`Unsupported static header path: ${path}`);
-		if (path.endsWith('/index.html')) rules.set(path.slice(0, -'index.html'.length), value);
-		else if (cleanPaths && path.endsWith('.html'))
-			rules.set(path.slice(0, -'.html'.length), value);
+		const alias = path.endsWith('/index.html')
+			? path.slice(0, -'index.html'.length)
+			: cleanPaths && path.endsWith('.html')
+				? path.slice(0, -'.html'.length)
+				: undefined;
+		if (!alias) continue;
+		let canonical = alias;
+		if (trailingSlash === false && alias.length > 1 && alias.endsWith('/'))
+			canonical = alias.slice(0, -1);
+		if (trailingSlash === true && !alias.endsWith('/')) canonical = alias + '/';
+		for (const candidate of new Set([alias, canonical])) {
+			const existing = rules.get(candidate);
+			if (existing && JSON.stringify(existing) !== JSON.stringify(value)) {
+				throw new Error(
+					`Static HTML path ${path} conflicts with another CSP policy at ${candidate}`,
+				);
+			}
+			rules.set(candidate, value);
+		}
 	}
 	return rules;
 }
@@ -147,15 +166,37 @@ export function mergeStaticHeaders(
 	const adapter = getAdapter(id);
 	if (id === 'json') {
 		const parsed: unknown = existing.trim() ? JSON.parse(existing) : {};
-		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-			throw new Error('Expected a JSON header map');
-		const managed = new Set<string>(cspHeaderNames.map((name) => name.toLowerCase()));
-		const entries = Object.entries(parsed).filter(
-			([name]) => name !== 'routes' && !managed.has(name.toLowerCase()),
+		const managed = new Set<string>([
+			'routes',
+			...cspHeaderNames.map((name) => name.toLowerCase()),
+		]);
+		const unmanaged = (value: unknown): Record<string, string> => {
+			if (!value || typeof value !== 'object' || Array.isArray(value))
+				throw new Error('Expected a JSON header map');
+			const entries = Object.entries(value).filter(([name]) => !managed.has(name.toLowerCase()));
+			if (entries.some(([, item]) => typeof item !== 'string'))
+				throw new Error('Expected a JSON header map');
+			return Object.fromEntries(entries);
+		};
+		const global = unmanaged(parsed);
+		const before = (parsed as { routes?: unknown }).routes ?? {};
+		if (!before || typeof before !== 'object' || Array.isArray(before))
+			throw new Error('Expected a JSON route map');
+		const routes = new Map(
+			Object.entries(before)
+				.map(([path, values]) => [path, unmanaged(values)] as const)
+				.filter(([, values]) => Object.keys(values).length > 0),
 		);
-		if (entries.some(([, value]) => typeof value !== 'string'))
-			throw new Error('Expected a JSON header map');
-		return stringifyAdapterOutput({ ...Object.fromEntries(entries), ...headers });
+		if (!('routes' in headers)) {
+			if (routes.size > 0)
+				throw new Error(
+					'Cannot replace a route map with a single policy while it contains user-managed route headers.',
+				);
+			return stringifyAdapterOutput({ ...global, ...headers });
+		}
+		for (const [path, values] of Object.entries(headers.routes))
+			routes.set(path, { ...routes.get(path), ...values });
+		return stringifyAdapterOutput({ ...global, routes: Object.fromEntries(routes) });
 	}
 	const routed = 'routes' in headers;
 	if (id === 'nginx' || id === 'apache' || id === 'caddy' || id === 'express') {
@@ -166,8 +207,11 @@ export function mergeStaticHeaders(
 		return adapter.merge(existing, headers);
 	}
 	const fallback = id === 'vercel' ? '/(.*)' : id === 'firebase' ? '**' : '/*';
-	const cleanPaths = id === 'cloudflare-pages' || id === 'netlify';
-	const rules = headerRules(headers, fallback, cleanPaths);
+	const routing =
+		id === 'vercel' || id === 'firebase'
+			? readStructuredRouting(id, existing, options)
+			: { cleanUrls: true };
+	const rules = headerRules(headers, fallback, routing.cleanUrls, routing.trailingSlash);
 	if (id === 'netlify' || id === 'cloudflare-pages') {
 		const prefix = existing.split(/\r?\n/);
 		const begin = prefix.indexOf(routeStart);
@@ -211,7 +255,7 @@ export function mergeStaticHeaders(
 		}
 		return merged;
 	}
-	const prior = headerRules(previous, fallback, cleanPaths);
+	const prior = headerRules(previous, fallback, routing.cleanUrls, routing.trailingSlash);
 	let output = prepareStructuredConfig(
 		id,
 		existing,

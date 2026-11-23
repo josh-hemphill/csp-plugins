@@ -290,3 +290,52 @@ it('covers Cloudflare Pages clean URLs and validates the total rule count', () =
 	).join('\n\n');
 	expect(() => mergeStaticHeaders('cloudflare-pages', existing, pages)).toThrow(/100-rule/);
 });
+
+it.each(['cloudflare-pages', 'netlify'] as const)('rejects an ambiguous %s clean URL', (id) => {
+	const routes = {
+		'/about.html': fixture,
+		'/about.html.html': { ...fixture, 'Content-Security-Policy': "script-src 'none'" },
+	};
+	expect(() => mergeStaticHeaders(id, '', { routes })).toThrow(/conflicts.*\/about\.html/);
+});
+
+it('covers configured Vercel canonical paths and rejects an unrelated project output', () => {
+	const routes = { '/about.html': fixture, '/news/index.html': fixture };
+	const current = JSON.stringify({
+		outputDirectory: 'dist/',
+		cleanUrls: true,
+		trailingSlash: false,
+	});
+	const merged = JSON.parse(
+		mergeStaticHeaders('vercel', current, { routes }, { publicDir: 'dist' }),
+	);
+	expect(merged.headers.map((rule: { source: string }) => rule.source)).toEqual(
+		expect.arrayContaining(['/about', '/news']),
+	);
+	expect(() => mergeStaticHeaders('vercel', current, { routes }, { publicDir: 'other' })).toThrow(
+		/selected output directory/,
+	);
+});
+
+it('retains other response headers in existing JSON route maps', () => {
+	const existing = JSON.stringify({
+		'X-Frame-Options': 'DENY',
+		routes: {
+			'/index.html': { 'Cache-Control': 'no-store' },
+			'/old.html': { 'X-Other': 'keep' },
+		},
+	});
+	const merged = JSON.parse(
+		mergeStaticHeaders('json', existing, { routes: { '/index.html': fixture } }),
+	);
+	expect(merged).toMatchObject({
+		'X-Frame-Options': 'DENY',
+		routes: {
+			'/index.html': { 'Cache-Control': 'no-store', ...fixture },
+			'/old.html': { 'X-Other': 'keep' },
+		},
+	});
+	expect(() => mergeStaticHeaders('json', existing, fixture)).toThrow(
+		/user-managed route headers/,
+	);
+});

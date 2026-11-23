@@ -34,7 +34,8 @@ export default function cspRollupPlugin(options: CspPluginOptions = {}): Plugin 
 					});
 				}
 				const outputDir = output.dir ?? (output.file ? dirname(output.file) : resolve('dist'));
-				await manifestWriter.writeManifest(await tracker.generateManifest(outputDir));
+				const manifest = await tracker.generateManifest(outputDir);
+				await manifestWriter.writeManifest({ ...manifest, outputPath: resolve(outputDir) });
 			},
 		},
 	};

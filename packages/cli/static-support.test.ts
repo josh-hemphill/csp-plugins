@@ -196,3 +196,64 @@ it('selects CSP options from the manifest for the requested build only', async (
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+it('exports a previously baked CLI policy in headers-only mode', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-baked-policy-'));
+	await mkdir(join(root, 'dist'));
+	const input = join(root, 'dist', 'index.html');
+	await writeFile(input, page('strict'));
+	await writeFile(join(root, 'strict.json'), JSON.stringify({ 'default-src': ['none'] }));
+	const run = (...args: string[]) =>
+		spawnSync(process.execPath, [cli, 'dist', ...args], { cwd: root, encoding: 'utf8' });
+	try {
+		expect(run('--csp-policy-file', 'strict.json').status).toBe(0);
+		const before = await readFile(input, 'utf8');
+		expect(run('--no-html', '--emit', 'cloudflare-pages').status).toBe(0);
+		expect(await readFile(input, 'utf8')).toBe(before);
+		expect(await readFile(join(root, 'dist', '_headers'), 'utf8')).toContain(
+			"default-src 'none'",
+		);
+		expect(await readFile(join(root, 'dist', '_headers'), 'utf8')).not.toContain(
+			"script-src 'self'",
+		);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('retains the deployment base during Vite-to-CLI host emission', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-base-'));
+	const dist = join(root, 'dist');
+	await mkdir(dist);
+	const previous = {
+		routes: {
+			'/site/index.html': { 'Content-Security-Policy': "script-src 'none'" },
+			'/site/about.html': { 'Content-Security-Policy': "script-src 'self'" },
+		},
+	};
+	try {
+		await writeFile(join(dist, 'csp-headers.json'), JSON.stringify(previous));
+		for (const [filename, url] of [
+			['index.html', '/site/index.html'],
+			['about.html', '/site/about.html'],
+		] as const) {
+			const policy = previous.routes[url]['Content-Security-Policy'];
+			await writeFile(
+				join(dist, filename),
+				`<!doctype html><html><head><meta data-csp-plugins="vite" http-equiv="Content-Security-Policy" content="${policy}"></head></html>`,
+			);
+		}
+		const result = spawnSync(process.execPath, [cli, 'dist', '--emit', 'cloudflare-pages'], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+		expect(result.status).toBe(0);
+		const config = await readFile(join(dist, '_headers'), 'utf8');
+		expect(config).toMatch(/^\/site\/about$/m);
+		expect(config).not.toMatch(/^\/about$/m);
+		const json = JSON.parse(await readFile(join(dist, 'csp-headers.json'), 'utf8'));
+		expect(json.routes['/site/index.html']['Content-Security-Policy']).toBe("script-src 'none'");
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
