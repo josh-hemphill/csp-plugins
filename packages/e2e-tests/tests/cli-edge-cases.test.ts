@@ -187,7 +187,7 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			expect(htmlContent).toContain('Content-Security-Policy');
 
 			// Check nonces
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -210,8 +210,8 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			const htmlFile = join(outputDir, 'index.html');
 			expect(existsSync(htmlFile)).toBe(true);
 
-			// Check that headers file was created in input directory
-			const headersFile = join(isolatedDir, 'csp-headers.json');
+			// Check that headers file was created in the publish directory
+			const headersFile = join(outputDir, 'csp-headers.json');
 			expect(existsSync(headersFile)).toBe(true);
 		});
 
@@ -429,7 +429,7 @@ describe('cLI Edge Cases and Advanced Scenarios', () => {
 			expect(processedHtmlContent).toContain('Content-Security-Policy');
 
 			// Check nonces
-			expect(processedHtmlContent).toContain('nonce-');
+			expect(processedHtmlContent).not.toContain('nonce-');
 		}, 30000); // 30 second timeout for large HTML
 	});
 

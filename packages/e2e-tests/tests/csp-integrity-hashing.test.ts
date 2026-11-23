@@ -321,7 +321,7 @@ describe('CSP Integrity and Hash Format Tests', () => {
 		try {
 			// Navigate to page and capture any errors
 			await page.goto(baseUrl, { waitUntil: 'networkidle2' });
-			await page.waitForTimeout(2000);
+			await new Promise((resolve) => setTimeout(resolve, 2000));
 
 			// Get security policy violations
 			const violations = await page.evaluate(() => {

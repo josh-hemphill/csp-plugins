@@ -67,6 +67,7 @@ describe('external Hashing', () => {
 					scripts: true,
 					includePatterns: ['example.com'],
 					excludePatterns: ['blocked.com'],
+					hashGenerator: async () => 'sha256-fixture',
 				},
 			},
 		});

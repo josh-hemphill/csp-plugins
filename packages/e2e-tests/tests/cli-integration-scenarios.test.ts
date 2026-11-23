@@ -93,7 +93,7 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			expect(htmlContent).toContain('Content-Security-Policy');
 
 			// Check nonces
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 
 			// Verify the workflow completed without errors
 			expect(stdout).not.toContain('Error:');
@@ -124,7 +124,7 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			expect(htmlContent).toContain('Content-Security-Policy');
 
 			// Check nonces for inline scripts and styles
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 
 			// Verify the HTML structure is intact and has CSP processing
 			expect(htmlContent).toContain('<html');
@@ -222,13 +222,13 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			expect(htmlContent).toContain('Content-Security-Policy');
 
 			// Check nonces
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
 	describe('cLI Output Validation Scenarios', () => {
-		it('should generate consistent nonces across multiple runs', async () => {
-			const isolatedDir = await buildTestAppInIsolation('nonce-consistency');
+		it('should generate identical static policies across multiple runs', async () => {
+			const isolatedDir = await buildTestAppInIsolation('hash-consistency');
 
 			// First run
 			const { stdout: firstRun } =
@@ -237,11 +237,11 @@ describe('cLI Integration Scenarios and Workflows', () => {
 
 			// Get first run HTML
 			const firstRunHtml = readFileSync(join(isolatedDir, 'index.html'), 'utf8');
-			const firstRunNonces = firstRunHtml.match(/nonce-[^;\s]+/g) || [];
+			expect(firstRunHtml).not.toContain('nonce-');
 
 			// Clean up and rebuild
 			rmSync(isolatedDir, { recursive: true, force: true });
-			const newIsolatedDir = await buildTestAppInIsolation('nonce-consistency-2');
+			const newIsolatedDir = await buildTestAppInIsolation('hash-consistency-2');
 
 			// Second run
 			const { stdout: secondRun } =
@@ -250,14 +250,7 @@ describe('cLI Integration Scenarios and Workflows', () => {
 
 			// Get second run HTML
 			const secondRunHtml = readFileSync(join(newIsolatedDir, 'index.html'), 'utf8');
-			const secondRunNonces = secondRunHtml.match(/nonce-[^;\s]+/g) || [];
-
-			// Both runs should have nonces
-			expect(firstRunNonces.length).toBeGreaterThan(0);
-			expect(secondRunNonces.length).toBeGreaterThan(0);
-
-			// Nonces should be different (randomly generated)
-			expect(firstRunNonces).not.toEqual(secondRunNonces);
+			expect(secondRunHtml).toEqual(firstRunHtml);
 		});
 
 		it('should validate CSP header format and content', async () => {
@@ -302,24 +295,14 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			expect(existsSync(headersFile)).toBe(true);
 
 			const headersContent = readFileSync(headersFile, 'utf8');
-			const headers = JSON.parse(headersContent) as Record<string, string>;
-
-			// Check headers structure (may be empty if CLI doesn't have policy directives)
-			// Note: Headers may be empty if CLI doesn't have CSP policy directives
-			// This is expected behavior for the current CLI implementation
-			expect(headers).toBeDefined();
-
-			// If headers are generated, validate their structure
-			if (Object.keys(headers).length > 0) {
-				expect(headers).toHaveProperty('Content-Security-Policy');
-				expect(typeof headers['Content-Security-Policy']).toBe('string');
-
-				// Check CSP content
-				const cspPolicyString = headers['Content-Security-Policy'];
-				expect(cspPolicyString).toContain('script-src');
-				expect(cspPolicyString).toContain('style-src');
-				expect(cspPolicyString).toContain('nonce-');
-			}
+			const { routes } = JSON.parse(headersContent) as {
+				routes: Record<string, Record<string, string>>;
+			};
+			const cspPolicyString = routes['/test.html']['Content-Security-Policy'];
+			expect(cspPolicyString).toContain('script-src');
+			expect(cspPolicyString).toContain('style-src');
+			expect(cspPolicyString).toContain("'sha256-");
+			expect(cspPolicyString).not.toContain('nonce-');
 		});
 	});
 
@@ -364,7 +347,7 @@ describe('cLI Integration Scenarios and Workflows', () => {
 			expect(htmlContent).toContain('Content-Security-Policy');
 
 			// Check nonces
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 
 			// Verify additional files are still present
 			for (const file of additionalFiles) {

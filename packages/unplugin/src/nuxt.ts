@@ -12,6 +12,11 @@ interface Nuxt {
 }
 
 export default function (options: CspPluginOptions = {}, nuxt: Nuxt): void {
+	if (typeof nuxt?.hook !== 'function') {
+		throw new TypeError(
+			'Pass the Nuxt instance as the second argument, or run csp-cli after static generation.',
+		);
+	}
 	// Install webpack plugin
 	nuxt.hook('webpack:config', async (config: NuxtConfig) => {
 		config.plugins = config.plugins || [];
@@ -21,6 +26,6 @@ export default function (options: CspPluginOptions = {}, nuxt: Nuxt): void {
 	// Install vite plugin
 	nuxt.hook('vite:extendConfig', async (config: NuxtConfig) => {
 		config.plugins = config.plugins || [];
-		config.plugins.push(cspVitePlugin(options));
+		config.plugins.push(cspVitePlugin({ ...options, generateCsp: false }));
 	});
 }

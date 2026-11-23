@@ -631,12 +631,25 @@ export class ExternalResourceManager {
 
 		// Check cache (memory or filesystem)
 		const cacheEntry = await this.readFromCache(cacheKey);
-		if (cacheEntry !== null && now - cacheEntry.timestamp < 3600000) {
+		if (
+			cacheEntry !== null &&
+			cacheEntry.sourceType !== 'local' &&
+			now - cacheEntry.timestamp < 3600000 &&
+			!(
+				fetchExternal &&
+				cacheEntry.sourceType === 'remote' &&
+				cacheEntry.content === '' &&
+				cacheEntry.hash === ''
+			)
+		) {
 			return {
 				url: src,
 				sourceType: cacheEntry.sourceType,
 				content: cacheEntry.content,
-				fetched: true,
+				fetched:
+					cacheEntry.sourceType !== 'remote' ||
+					cacheEntry.content.length !== 0 ||
+					cacheEntry.hash.length !== 0,
 			};
 		}
 

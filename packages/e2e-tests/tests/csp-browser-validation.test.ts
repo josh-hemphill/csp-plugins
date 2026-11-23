@@ -224,7 +224,7 @@ describe('cSP Browser Validation', () => {
 			await page.goto(baseUrl, { waitUntil: 'networkidle2' });
 
 			// Wait for any CSP violations to be captured
-			await page.waitForTimeout(2000);
+			await new Promise((resolve) => setTimeout(resolve, 2000));
 
 			// Check for CSP policy in meta tag
 			const cspPolicy = await page.evaluate(() => {

@@ -29,10 +29,13 @@ function isHashAlgorithm(algorithm: ValidCrypto): algorithm is HashAlgorithm {
 	return (validHashes as readonly string[]).includes(algorithm);
 }
 
-async function digestBase64(content: string, algorithm: HashAlgorithm): Promise<string> {
+async function digestBase64(
+	content: string | Uint8Array,
+	algorithm: HashAlgorithm,
+): Promise<string> {
 	if (typeof crypto !== 'undefined' && 'subtle' in crypto) {
-		const encoder = new TextEncoder();
-		const data = encoder.encode(content);
+		const data =
+			typeof content === 'string' ? new TextEncoder().encode(content) : Uint8Array.from(content);
 		const algoName = String.prototype.toUpperCase.call(algorithm).replace('SHA', 'SHA-');
 		const hashBuffer = await crypto.subtle.digest(algoName, data);
 		const hashArray = new Uint8Array(hashBuffer);
@@ -41,7 +44,10 @@ async function digestBase64(content: string, algorithm: HashAlgorithm): Promise<
 
 	try {
 		const nodeCrypto = await import('node:crypto');
-		return nodeCrypto.createHash(algorithm).update(content, 'utf8').digest('base64');
+		return nodeCrypto
+			.createHash(algorithm)
+			.update(typeof content === 'string' ? new TextEncoder().encode(content) : content)
+			.digest('base64');
 	} catch {
 		throw new Error('Hash generation not supported in this environment');
 	}
@@ -63,19 +69,17 @@ export async function generateNonce(): Promise<string> {
 		const nodeCrypto = await import('node:crypto');
 		return nodeCrypto.randomBytes(16).toString('base64');
 	} catch {
-		console.warn('Crypto API is not available in this environment');
-		console.warn('Falling back to Math.random()');
-		// Ultimate fallback
-		return (
-			Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-		);
+		throw new Error('Secure nonce generation is not available in this environment');
 	}
 }
 
 /**
  * Generate a CSP hash source (`sha256-<base64>`) for content.
  */
-export async function generateHash(content: string, algorithm: ValidCrypto): Promise<HashSource> {
+export async function generateHash(
+	content: string | Uint8Array,
+	algorithm: ValidCrypto,
+): Promise<HashSource> {
 	if (!isHashAlgorithm(algorithm)) {
 		throw new Error(`generateHash requires sha256, sha384, or sha512, received ${algorithm}`);
 	}

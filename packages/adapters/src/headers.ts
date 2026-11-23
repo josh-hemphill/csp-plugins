@@ -9,7 +9,11 @@ export function presentHeaders(headers: CspDirectiveHeaders): Array<[string, str
 			const value = headers[name];
 			return typeof value === 'string' && value.length > 0;
 		})
-		.map((name) => [name, headers[name]]);
+		.map((name) => {
+			const value = headers[name];
+			if (/[\r\n\0]/.test(value)) throw new Error(`Invalid control character in ${name}`);
+			return [name, value];
+		});
 }
 
 /** Escape a value for a double-quoted config string. */

@@ -39,7 +39,11 @@ function listSources<T>(base: T | T[] | undefined): T[] {
 
 /** Append sources without duplicating existing entries. */
 function appendSources<T extends string>(base: T | T[] | undefined, extra: T[]): T[] {
-	const merged = [...listSources(base), ...extra];
+	const original = listSources(base);
+	if (original.some((item) => item === 'none' || item === "'none'")) {
+		return original.filter((item) => item === 'none' || item === "'none'").slice(0, 1);
+	}
+	const merged = [...original, ...extra];
 	const seen = new Set<string>();
 	const result: T[] = [];
 	for (const item of merged) {
@@ -167,7 +171,7 @@ export interface CSPProcessorOptions {
 			nonceGenerator?: CryptoGenerator;
 		};
 		hashing?: ExternalSourceGeneralOptions & {
-			hashGenerator?: CryptoGenerator;
+			hashGenerator?: (src: string, type: ExternalSourceType) => PromiseLike<string | undefined>;
 			/**
 			 * Enable adding the Integrity attribute to external sources
 			 * @default true
@@ -333,19 +337,20 @@ export class CSPProcessor {
 
 	constructor(options: CSPProcessorOptions = {}) {
 		this.options = {
-			enableNonces: true,
-			enableHashes: true,
-			nonceGenerator: generateNonce,
-			hashAlgorithm: 'sha256',
-			baseDirectives: {},
-			injectMetaTag: true,
+			...options,
+			enableNonces: options.enableNonces ?? true,
+			enableHashes: options.enableHashes ?? true,
+			nonceGenerator: options.nonceGenerator ?? generateNonce,
+			hashAlgorithm: options.hashAlgorithm ?? 'sha256',
+			baseDirectives: options.baseDirectives ?? {},
+			injectMetaTag: options.injectMetaTag ?? true,
 			metaTagOptions: {
 				replaceExisting: true,
 				attributes: {},
 				position: 'first',
 				...options.metaTagOptions,
 			},
-			generateHeaders: true,
+			generateHeaders: options.generateHeaders ?? true,
 			externalSources: {
 				noncing: {
 					scripts: false,
@@ -373,7 +378,7 @@ export class CSPProcessor {
 				},
 				resourceManager: options.externalSources?.resourceManager ?? {},
 			},
-			developmentMode: false,
+			developmentMode: options.developmentMode ?? false,
 			development: {
 				allowUnsafeEval: false,
 				allowUnsafeInline: false,
@@ -384,7 +389,6 @@ export class CSPProcessor {
 				attemptDevServerHeaders: true,
 				...options.development,
 			},
-			...options,
 		};
 
 		this.externalResourceManager = new ExternalResourceManager(
@@ -426,11 +430,21 @@ export class CSPProcessor {
 		return document;
 	}
 
+	/** The first HTML base URL, if present. */
+	getDocumentBase(document: Document): string | undefined {
+		const node = findOne(
+			(element) => element.name === 'base' && element.attribs.href !== undefined,
+			document.children,
+			true,
+		);
+		return node?.attribs.href;
+	}
+
 	/**
 	 * Get the text content of an element's children
 	 */
 	private sourceTextFromElementChildren(element: Element): string {
-		return serialize(element.children, serializeOptions);
+		return serialize(element.children, serializeOptions).replace(/\r\n?/g, '\n');
 	}
 
 	private tryPushSource<T extends AnalysisNode<false> | AnalysisNode<true>>(
@@ -692,19 +706,16 @@ export class CSPProcessor {
 		};
 
 		// Build CSP directives based on analysis
-		const cspBuilder = new CspDirectives(this.options.baseDirectives.CSP);
-
-		// Ensure base directives are preserved by merging them with any existing CSP directives
-		/* if (this.options.baseDirectives.CSP) {
-			cspBuilder.CSP['script-src'] = [...(cspBuilder.CSP['script-src'] ?? []), ...(this.options.baseDirectives.CSP['script-src'] ?? [])] as Sources;
-			cspBuilder.CSP['style-src'] = [...(cspBuilder.CSP['style-src'] ?? []), ...(this.options.baseDirectives.CSP['style-src'] ?? [])] as Sources;
-			cspBuilder.CSP['img-src'] = [...(cspBuilder.CSP['img-src'] ?? []), ...(this.options.baseDirectives.CSP['img-src'] ?? [])] as Sources;
-			cspBuilder.CSP['font-src'] = [...(cspBuilder.CSP['font-src'] ?? []), ...(this.options.baseDirectives.CSP['font-src'] ?? [])] as Sources;
-			cspBuilder.CSP['default-src'] = [...(cspBuilder.CSP['default-src'] ?? []), ...(this.options.baseDirectives.CSP['default-src'] ?? [])] as Sources;
-		} */
+		const { CSP, ReportTo, ReportOnly, ReferrerHeader } = this.options.baseDirectives;
+		const cspBuilder = new CspDirectives(
+			{ ...CSP },
+			ReportTo,
+			ReportOnly || undefined,
+			ReferrerHeader,
+		);
 
 		// Add script sources. Strict default is `'self'` plus hashes/nonces.
-		const scriptSrc: ActionSource[] = [STRICT_FETCH_DEFAULT];
+		const scriptSrc: ActionSource[] = [];
 		if (this.options.enableHashes) {
 			for (const script of analysis.inlineScripts) {
 				const hash = await generateHash(script.content, this.options.hashAlgorithm);
@@ -739,7 +750,7 @@ export class CSPProcessor {
 		}
 
 		// Add style sources. Strict default is `'self'` plus hashes/nonces.
-		const styleSrc: Sources = [STRICT_FETCH_DEFAULT];
+		const styleSrc: Sources = [];
 		if (this.options.enableHashes) {
 			for (const style of analysis.inlineStyles) {
 				const hash = await generateHash(style.content, this.options.hashAlgorithm);
@@ -830,11 +841,12 @@ export class CSPProcessor {
 
 		// Update CSP directives
 		cspBuilder.CSP['script-src'] = appendSources(
-			cspBuilder.CSP['script-src'] as ActionSource | ActionSource[] | undefined,
+			cspBuilder.CSP['script-src'] ?? cspBuilder.CSP['default-src'] ?? [STRICT_FETCH_DEFAULT],
 			scriptSrc,
 		);
 		cspBuilder.CSP['style-src'] = appendSources(
-			cspBuilder.CSP['style-src'] as Sources | undefined,
+			cspBuilder.CSP['style-src'] ??
+				(cspBuilder.CSP['default-src'] as Sources | undefined) ?? [STRICT_FETCH_DEFAULT],
 			styleSrc,
 		);
 		if (imgSrc.length > 0) {
@@ -1056,7 +1068,9 @@ export class CSPProcessor {
 		if (externalHashing.hashGenerator) {
 			try {
 				const hash = await externalHashing.hashGenerator(src, type);
-				return { hash: toHashSource(hash, this.options.hashAlgorithm) };
+				return hash === undefined
+					? {}
+					: { hash: toHashSource(hash, this.options.hashAlgorithm) };
 			} catch {
 				return {};
 			}
@@ -1070,7 +1084,7 @@ export class CSPProcessor {
 		);
 
 		// If we have content, generate hash from it
-		if (result.content !== undefined) {
+		if (result.fetched && result.sourceType !== 'data' && result.content !== undefined) {
 			try {
 				const hash = await generateHash(result.content, this.options.hashAlgorithm);
 				return { hash };
@@ -1079,13 +1093,7 @@ export class CSPProcessor {
 			}
 		}
 
-		// Fallback: generate hash from the URL itself
-		try {
-			const hash = await generateHash(src, this.options.hashAlgorithm);
-			return { hash };
-		} catch {
-			return {};
-		}
+		return {};
 	}
 
 	/**
@@ -1094,12 +1102,7 @@ export class CSPProcessor {
 	private isLocalResource(source: string): boolean {
 		// Simple check for local resources
 		// This could be enhanced with more sophisticated local resource detection
-		return (
-			source.startsWith('/') ||
-			source.startsWith('./') ||
-			source.startsWith('../') ||
-			!source.includes('://')
-		);
+		return !source.startsWith('//') && !/^[a-z][a-z\d+.-]*:/i.test(source);
 	}
 
 	/**

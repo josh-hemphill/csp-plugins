@@ -10,9 +10,15 @@ import {
 	mergeNetlify,
 	mergeNginx,
 	mergeVercel,
+	prepareStructuredConfig,
 	stringifyAdapterOutput,
 } from './merge.ts';
-import type { AdapterId, HeaderAdapter, HeaderAdapterOptions } from './types.ts';
+import {
+	isAdapterId,
+	type AdapterId,
+	type HeaderAdapter,
+	type HeaderAdapterOptions,
+} from './types.ts';
 
 export type { AdapterId, HeaderAdapter, HeaderAdapterOptions } from './types.ts';
 export { adapterIds, cspHeaderNames, isAdapterId } from './types.ts';
@@ -87,10 +93,10 @@ export function parseAdapterIds(value: string): AdapterId[] {
 		if (id.length === 0) {
 			continue;
 		}
-		if (!(id in adapters)) {
+		if (!isAdapterId(id)) {
 			throw new Error(`Unknown header adapter: ${id}`);
 		}
-		ids.push(id as AdapterId);
+		if (!ids.includes(id)) ids.push(id);
 	}
 	return ids;
 }
@@ -104,3 +110,102 @@ export function emitAdapter(
 }
 
 export { adapters };
+
+export type StaticHeaderArtifact =
+	| CspDirectiveHeaders
+	| { routes: Record<string, CspDirectiveHeaders> };
+
+function headerRules(
+	headers: StaticHeaderArtifact | undefined,
+	fallback: string,
+): Map<string, CspDirectiveHeaders> {
+	if (!headers) return new Map();
+	if (!('routes' in headers)) return new Map([[fallback, headers]]);
+	const rules = new Map(Object.entries(headers.routes));
+	for (const [path, value] of rules) {
+		if (!/^\/[\w.%/-]*$/.test(path)) throw new Error(`Unsupported static header path: ${path}`);
+		if (path.endsWith('/index.html')) rules.set(path.slice(0, -'index.html'.length), value);
+	}
+	return rules;
+}
+
+const routeStart = '# csp-plugins headers begin';
+const routeEnd = '# csp-plugins headers end';
+
+/** Merge a static header artifact, optionally replacing rules from a prior generation. */
+export function mergeStaticHeaders(
+	id: AdapterId,
+	existing: string,
+	headers: StaticHeaderArtifact,
+	options?: Omit<HeaderAdapterOptions, 'pathPrefix'>,
+	previous?: StaticHeaderArtifact,
+): string {
+	const adapter = getAdapter(id);
+	if (id === 'json')
+		return 'routes' in headers
+			? stringifyAdapterOutput(headers)
+			: adapter.merge(existing, headers);
+	const routed = 'routes' in headers;
+	if (id === 'nginx' || id === 'apache' || id === 'caddy' || id === 'express') {
+		if (routed)
+			throw new Error(
+				`${id} emits a single-policy snippet. Use the JSON route map to attach each policy to its route.`,
+			);
+		return adapter.merge(existing, headers);
+	}
+	const fallback = id === 'vercel' ? '/(.*)' : id === 'firebase' ? '**' : '/*';
+	const rules = headerRules(headers, fallback);
+	if (id === 'netlify' || id === 'cloudflare-pages') {
+		const prefix = existing.split(/\r?\n/);
+		const begin = prefix.indexOf(routeStart);
+		const end = prefix.indexOf(routeEnd);
+		if (begin !== -1 || end !== -1) {
+			if (
+				begin < 0 ||
+				end <= begin ||
+				prefix.lastIndexOf(routeStart) !== begin ||
+				prefix.lastIndexOf(routeEnd) !== end
+			) {
+				throw new Error('Invalid CSP header block markers');
+			}
+			prefix.splice(begin, end - begin + 1);
+		}
+		const remaining = prefix.join('\n').trimEnd();
+		let path = '';
+		for (const line of prefix) {
+			if (line.trim() && !line.startsWith('#') && !/^\s/.test(line)) path = line.trim();
+			if (
+				/^\s*content-security-policy(?:-report-only)?\s*:/i.test(line) &&
+				(!routed || !/^\/[\w.%/-]*$/.test(path) || rules.has(path))
+			) {
+				throw new Error(
+					'An existing CSP rule overlaps generated routes. Remove or scope that rule before emitting a route policy.',
+				);
+			}
+		}
+		const output = [...rules]
+			.map(([source, value]) => emitAdapter(id, value, { pathPrefix: source }).trimEnd())
+			.join('\n\n');
+		if (
+			id === 'cloudflare-pages' &&
+			(rules.size > 100 || output.split('\n').some((line) => line.length > 2000))
+		) {
+			throw new Error(
+				'Generated Cloudflare Pages headers exceed its 100-rule or 2,000-character line limit',
+			);
+		}
+		return `${remaining ? remaining + '\n\n' : ''}${routeStart}\n${output}\n${routeEnd}\n`;
+	}
+	const prior = headerRules(previous, fallback);
+	let output = prepareStructuredConfig(
+		id,
+		existing,
+		prior,
+		routed ? new Set(rules.keys()) : undefined,
+		options,
+	);
+	for (const [path, value] of rules) {
+		output = adapter.merge(output, value, { ...options, pathPrefix: path });
+	}
+	return output;
+}

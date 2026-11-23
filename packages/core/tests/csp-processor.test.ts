@@ -234,7 +234,7 @@ describe('cSPProcessor', () => {
 			expect(csp).toContain('script-src');
 			expect(csp).toContain('style-src');
 			expect(csp).toContain('img-src');
-			expect(csp).toContain('font-src');
+			expect(csp).not.toContain('font-src'); // No font bytes are available in this fixture.
 
 			// The CSP should contain hashes for external sources, not the URLs themselves
 			// This is the correct security behavior - external sources are hashed for integrity
@@ -512,4 +512,21 @@ describe('cSPProcessor', () => {
 			expect(result.analysis).toBeDefined();
 		});
 	});
+});
+
+it('preserves an explicit deny and never accumulates page-specific hashes in its options', async () => {
+	const options = { CSP: { 'script-src': ['none' as const], 'style-src': ['self' as const] } };
+	const processor = new CSPProcessor({ enableNonces: false, baseDirectives: options });
+	const first = await processor.processHTML(
+		'<script>console.log(1)</script><style>p{color:red}</style>',
+	);
+	const second = await processor.processHTML(
+		'<script>console.log(2)</script><style>p{color:blue}</style>',
+	);
+	expect(first.headers['Content-Security-Policy']).toContain("script-src 'none';");
+	expect(first.headers['Content-Security-Policy']).not.toContain("script-src 'none' 'self'");
+	expect(second.headers['Content-Security-Policy']).not.toContain(
+		first.analysis.inlineStyles[0].hash,
+	);
+	expect(options.CSP['style-src']).toEqual(['self']);
 });

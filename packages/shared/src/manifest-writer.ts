@@ -134,22 +134,32 @@ export class ManifestWriter {
 		try {
 			const files = await fs.readdir(this.manifestDir);
 			const manifestFiles = files.filter(
-				(f) => f.endsWith('.json') && f !== 'consolidated-*.json',
+				(f) => f.endsWith('.json') && !f.startsWith('consolidated-'),
 			);
 
-			const manifests: AssetManifest[] = [];
+			const manifests = new Map<string, AssetManifest>();
 			for (const file of manifestFiles) {
 				try {
 					const content = await fs.readFile(join(this.manifestDir, file), 'utf-8');
 					const manifest = JSON.parse(content) as AssetManifest;
-					manifests.push(manifest);
+					if (
+						typeof manifest?.buildTool !== 'string' ||
+						typeof manifest.outputDir !== 'string' ||
+						typeof manifest.buildTime !== 'number' ||
+						!Array.isArray(manifest.assets) ||
+						!isRecord(manifest.cspProcessorOptions)
+					)
+						continue;
+					const key = JSON.stringify([manifest.buildTool, manifest.outputDir]);
+					const prior = manifests.get(key);
+					if (!prior || prior.buildTime < manifest.buildTime) manifests.set(key, manifest);
 				} catch {
 					// Skip invalid manifest files
 					console.warn(`Warning: Could not parse manifest file ${file}`);
 				}
 			}
 
-			return manifests;
+			return [...manifests.values()];
 		} catch {
 			// Directory doesn't exist or can't be read
 			return [];

@@ -60,11 +60,62 @@ describe('cspVitePlugin HTML and headers', () => {
 	});
 
 	it('skips HTML injection when generateCsp is false', async () => {
-		const plugin = cspVitePlugin({ generateCsp: false, emitHeadersFile: false });
-		const html = '<html><head></head><body><script>console.log(1)</script></body></html>';
-		const transform = plugin.transformIndexHtml;
-		expect(transform).toBeTypeOf('function');
-		const result = await (transform as (html: string) => Promise<string>)(html);
-		expect(result).toBe(html);
+		const root = await mkdtemp(join(tmpdir(), 'csp-vite-disabled-'));
+		await writeViteApp(root);
+		await build({ root, logLevel: 'silent', plugins: [cspVitePlugin({ generateCsp: false })] });
+		const output = await readFile(join(root, 'dist', 'index.html'), 'utf8');
+		expect(output).not.toContain('Content-Security-Policy');
 	});
+});
+
+it('keys multi-page headers by final HTML path and resets them on rebuild', async () => {
+	const { createHash } = await import('node:crypto');
+	const { rm } = await import('node:fs/promises');
+	const root = await mkdtemp(join(tmpdir(), 'csp-vite-mpa-'));
+	const plugin = cspVitePlugin();
+	const index = join(root, 'index.html');
+	const about = join(root, 'about.html');
+	const output = join(root, 'dist', 'csp-headers.json');
+	const html = (script: string) =>
+		`<!doctype html><html><head></head><body><script>${script}</script></body></html>`;
+	const hash = (script: string) =>
+		`sha256-${createHash('sha256').update(script).digest('base64')}`;
+	const run = (input: string[]) =>
+		build({
+			root,
+			configFile: false,
+			logLevel: 'silent',
+			base: '/site/',
+			plugins: [plugin],
+			build: { rolldownOptions: { input } },
+		});
+	try {
+		await writeFile(index, html('console.log("index")'));
+		await writeFile(about, html('console.log("about")'));
+		await run([index, about]);
+		const initial = await readFile(output, 'utf8');
+		const { routes } = JSON.parse(initial);
+		expect(Object.keys(routes)).toEqual(['/site/about.html', '/site/index.html']);
+		expect(routes['/site/index.html']['Content-Security-Policy']).toContain(
+			hash('console.log("index")'),
+		);
+		expect(routes['/site/index.html']['Content-Security-Policy']).not.toContain(
+			hash('console.log("about")'),
+		);
+		expect(routes['/site/about.html']['Content-Security-Policy']).toContain(
+			hash('console.log("about")'),
+		);
+		expect(initial).not.toContain('nonce-');
+		await run([index, about]);
+		expect(await readFile(output, 'utf8')).toBe(initial);
+		await rm(about);
+		await writeFile(index, html('console.log("updated")'));
+		await run([index]);
+		const rebuilt = await readFile(output, 'utf8');
+		expect(rebuilt).not.toContain('routes');
+		expect(rebuilt).toContain(hash('console.log("updated")'));
+		expect(rebuilt).not.toContain(hash('console.log("about")'));
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
 });

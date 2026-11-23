@@ -2,7 +2,15 @@
 
 Monorepo for generating typed Content-Security-Policy meta tags and headers from HTML and build assets.
 
-This is an unpublished rewrite of [vite-plugin-csp](https://github.com/josh-hemphill/csp-plugins). Product work (strict zero-config CSP, host adapters) is tracked in [`docs/next-work.md`](docs/next-work.md).
+This is an unpublished rewrite of [vite-plugin-csp](https://www.npmjs.com/package/vite-plugin-csp).
+See the [build plugin guide](packages/unplugin/README.md) and [CLI and hosting guide](packages/cli/README.md).
+
+| Workflow | Build integration | Deployment integration |
+| --- | --- | --- |
+| Vite 8 static build | HTML CSP, final-asset manifest, and route headers | JSON or CLI host output |
+| Webpack 5, Rollup 4, esbuild 0.28 | Final-asset manifest | CLI on emitted static HTML |
+| Prerendered Nuxt or other static generators | CLI on the final publish directory | CLI host output |
+| Runtime SSR | Server integration is future work | Define CSP on the server response |
 
 ## Requirements
 

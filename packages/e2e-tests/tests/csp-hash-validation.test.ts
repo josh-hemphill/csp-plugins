@@ -302,7 +302,7 @@ describe('CSP Hash Validation Tests', () => {
 			await page.goto(baseUrl, { waitUntil: 'networkidle2' });
 
 			// Wait for any CSP violations to be captured
-			await page.waitForTimeout(2000);
+			await new Promise((resolve) => setTimeout(resolve, 2000));
 
 			// Get any security policy violations
 			const violations = await page.evaluate(() => {

@@ -41,6 +41,12 @@ jobs:
       - run: pnpm fmt:check
       - name: Test
         run: pnpm ${{ matrix.node == '24' && 'test:coverage' || 'test' }}
+      - name: CLI integration
+        if: matrix.node == '24'
+        run: pnpm --filter @csp-plugins/cli test
+      - name: Browser and end-to-end integration
+        if: matrix.node == '24'
+        run: pnpm --filter @csp-plugins/e2e-tests test
       - name: Coverage summary
         if: matrix.node == '24'
         run: pnpm coverage:summary

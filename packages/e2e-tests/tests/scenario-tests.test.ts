@@ -90,8 +90,8 @@ describe('e2E Scenario Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -120,8 +120,8 @@ describe('e2E Scenario Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -150,8 +150,8 @@ describe('e2E Scenario Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -219,8 +219,8 @@ describe('e2E Scenario Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -316,8 +316,8 @@ describe('e2E Scenario Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -346,8 +346,8 @@ describe('e2E Scenario Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 
 			// Note: Integrity attributes may not be present depending on the build output
 			// This test validates that the CLI runs successfully with the flag

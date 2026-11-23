@@ -5,6 +5,7 @@ import {
 	adapters,
 	emitAdapter,
 	getAdapter,
+	mergeStaticHeaders,
 	isAdapterId,
 	parseAdapterIds,
 	presentHeaders,
@@ -162,5 +163,103 @@ describe('header adapters', () => {
 				'vercel',
 			].toSorted(),
 		);
+	});
+});
+
+describe('static host configuration', () => {
+	it('keeps unrelated Vercel metadata and removes only previous generated rules', () => {
+		const original = {
+			cleanUrls: false,
+			headers: [
+				{
+					source: '/conditional',
+					has: [{ type: 'header', key: 'accept' }],
+					headers: [{ key: 'X-Fixture', value: '1' }],
+				},
+				{ source: '/old.html', headers: [{ key: 'Cache-Control', value: 'no-cache' }] },
+			],
+		};
+		const previous = { routes: { '/index.html': fixture, '/old.html': fixture } };
+		const generated = mergeStaticHeaders('vercel', JSON.stringify(original), previous);
+		const next = { routes: { '/index.html': fixture, '/new.html': fixture } };
+		const rebuilt = JSON.parse(
+			mergeStaticHeaders('vercel', generated, next, undefined, previous),
+		);
+		expect(rebuilt.headers[0]).toEqual(original.headers[0]);
+		expect(
+			rebuilt.headers.find((rule: { source: string }) => rule.source === '/old.html'),
+		).toEqual(original.headers[1]);
+		expect(rebuilt.headers.map((rule: { source: string }) => rule.source)).toContain('/new.html');
+	});
+
+	it('keeps Firebase regex rules and unrelated sites', () => {
+		const hosting = [
+			{
+				target: 'docs',
+				public: 'docs-dist',
+				rewrites: [{ source: '**', destination: '/index.html' }],
+			},
+			{
+				target: 'app',
+				public: 'dist',
+				headers: [{ regex: '/api/.*', headers: [{ key: 'Cache-Control', value: 'no-cache' }] }],
+			},
+		];
+		const previous = JSON.stringify({ hosting, functions: { source: 'functions' } });
+		const next = JSON.parse(
+			mergeStaticHeaders(
+				'firebase',
+				previous,
+				{ routes: { '/docs/index.html': fixture } },
+				{ publicDir: 'dist' },
+			),
+		);
+		expect(next.hosting[0]).toEqual(hosting[0]);
+		expect(next.hosting[1].headers[0]).toEqual(hosting[1].headers?.[0]);
+		expect(next.hosting[1].headers.map((rule: { source?: string }) => rule.source)).toContain(
+			'/docs/',
+		);
+		expect(next.functions.source).toBe('functions');
+		expect(() =>
+			mergeStaticHeaders('firebase', previous, fixture, { publicDir: 'missing' }),
+		).toThrow(/exactly one/);
+	});
+
+	it.each(['netlify', 'cloudflare-pages'] as const)(
+		'replaces a %s route block and preserves hand-written rules',
+		(id) => {
+			const unrelated = '# handwritten\n/assets/*\n  Cache-Control: public, max-age=3600\n';
+			const first = mergeStaticHeaders(id, unrelated, {
+				routes: { '/old.html': fixture, '/index.html': fixture },
+			});
+			const rebuilt = mergeStaticHeaders(id, first, {
+				routes: { '/new.html': fixture, '/index.html': fixture },
+			});
+			expect(rebuilt).toContain(unrelated);
+			expect(rebuilt).not.toContain('/old.html');
+			expect(rebuilt).toContain('/new.html');
+			expect(rebuilt.match(/# csp-plugins headers begin/g)).toHaveLength(1);
+			expect(() =>
+				mergeStaticHeaders(id, '/*\n  content-security-policy: default-src none\n', {
+					routes: { '/one.html': fixture },
+				}),
+			).toThrow(/overlaps/);
+		},
+	);
+
+	it('runs the generated Express middleware', async () => {
+		const source = emitAdapter('express', fixture);
+		const { cspHeaders } = await import('data:text/javascript,' + encodeURIComponent(source));
+		const response = new Map<string, string>();
+		let called = false;
+		cspHeaders(
+			{},
+			{ setHeader: (name: string, value: string) => response.set(name, value) },
+			() => {
+				called = true;
+			},
+		);
+		expect(Object.fromEntries(response)).toEqual(Object.fromEntries(presentHeaders(fixture)));
+		expect(called).toBe(true);
 	});
 });

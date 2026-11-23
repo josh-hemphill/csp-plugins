@@ -1,212 +1,59 @@
-# @csp-plugins/unplugin
+# CSP build plugins
 
-Individual build tool plugins for CSP asset tracking and dev server integration with HTML processing capabilities.
+This package is part of the unpublished [CSP Plugins workspace](../../README.md).
+The Vite plugin processes static HTML. Webpack, Rollup, and esbuild integrations
+record build assets for post-build processing.
 
-## Features
+## Vite 8
 
-  - **Build Tool Support**: Individual plugins for Vite, Webpack, Rollup, esbuild, and Nuxt
-  - **Asset Tracking**: Automatic tracking of all assets during build
-  - **Dev Server Integration**: Real-time CSP processing during development
-  - **HTML Processing**: Automatic CSP meta tag injection using the core library
-  - **CLI Tool**: Post-build processing command for final assets
-  - **Manifest Generation**: Comprehensive asset manifests for CSP generation
-  - **Smart Manifest Placement**: By default, `.csp-manifest` directory is automatically placed in the build output directory
+Import the Vite entry point into your Vite config.
 
-## Default Behavior
-
-When no `manifestDir` option is specified, the plugins automatically place the `.csp-manifest` directory inside the build output directory:
-
-  - **Vite**: Uses `dist/.csp-manifest` (or custom output directory)
-  - **Webpack**: Uses `dist/.csp-manifest` (or custom output directory)
-  - **Rollup**: Uses `dist/.csp-manifest` (or custom output directory)
-  - **esbuild**: Uses `dist/.csp-manifest` (or custom output directory)
-
-This ensures that CSP manifests are always generated alongside your built assets, making them easy to find and deploy together.
-
-## Installation
-
-```bash
-npm install @csp-plugins/unplugin
-```
-
-## Usage
-
-### Individual Build Tool Plugins
-
-#### Vite
-
-```typescript
-import cspVitePlugin from '@csp-plugins/unplugin/vite';
+```ts
+import csp from '@csp-plugins/unplugin/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
- plugins: [
-  cspVitePlugin({
-   trackAssets: true,
-   devServer: true,
-   manifestDir: '.csp-manifest', // Optional: defaults to output directory
-  }),
- ],
+  plugins: [csp()],
 });
 ```
 
-#### Webpack
+A production build adds a CSP meta tag to each emitted HTML page and emits
+`csp-headers.json` in the output directory. One page produces a flat header map.
+A multi-page build produces a `routes` object keyed by deployed HTML path,
+including the Vite `base`. Set `generateCsp: false` to track assets only,
+`emitHeadersFile: false` to skip JSON, or pass a filename to change it.
 
-```typescript
-import CspWebpackPlugin from '@csp-plugins/unplugin/webpack';
+Static policies use SHA-256 by default and are reproducible. When serving an
+HTTP policy, select the entry for the requested HTML document. A single policy
+from a multi-page build can block other pages. Meta policies apply to their own
+document. Directives such as `frame-ancestors` require an HTTP header.
 
-export default {
- plugins: [
-  new CspWebpackPlugin({
-   trackAssets: true,
-   devServer: true,
-   manifestDir: '.csp-manifest', // Optional: defaults to output directory
-  }),
- ],
-};
+Ordinary Vite dev and HMR run unchanged by default. `devServer: true` opts into
+a policy on dev HTML. Vite and framework plugins can inject styles or scripts at
+runtime that require a deliberate development policy. Verify these flows before
+enabling the option on a development application.
+
+## Asset tracking
+
+Use the plugin for your build tool. The named exports from the package root
+are the same factories as the default exports from their individual entry points.
+
+```ts
+import { esbuild, rollup, webpack } from '@csp-plugins/unplugin';
+
+const webpackPlugins = [webpack()];
+const rollupPlugins = [rollup()];
+const esbuildPlugins = [esbuild()];
 ```
 
-#### Rollup
+Webpack 5 and Rollup 4 track emitted production assets. esbuild 0.28 tracks
+disk and in-memory output when an `outfile` or `outdir` is configured. The disk build enables esbuild metadata to discover its output files. The
+plugins use `.csp-manifest` relative to the build root or working directory.
+Pass an absolute `manifestDir` to make the destination explicit. Run the
+[CLI](../cli/README.md) on the final HTML directory to generate policies for
+these pipelines.
 
-```typescript
-import cspRollupPlugin from '@csp-plugins/unplugin/rollup';
-
-export default {
- plugins: [
-  cspRollupPlugin({
-   trackAssets: true,
-   manifestDir: '.csp-manifest', // Optional: defaults to output directory
-  }),
- ],
-};
-```
-
-#### esbuild
-
-```typescript
-import cspEsbuildPlugin from '@csp-plugins/unplugin/esbuild';
-
-export default {
- plugins: [
-  cspEsbuildPlugin({
-   trackAssets: true,
-   manifestDir: '.csp-manifest', // Optional: defaults to output directory
-  }),
- ],
-};
-```
-
-#### Nuxt
-
-```typescript
-import cspNuxtPlugin from '@csp-plugins/unplugin/nuxt';
-
-export default defineNuxtConfig({
- modules: [
-  cspNuxtPlugin({
-   trackAssets: true,
-   devServer: true,
-   manifestDir: '.csp-manifest', // Optional: defaults to output directory
-  }),
- ],
-});
-```
-
-### Dev Server Integration
-
-The dev server integration automatically processes HTML files and injects CSP meta tags during development:
-
-```typescript
-import { DevServerIntegration } from '@csp-plugins/unplugin';
-
-const devServer = new DevServerIntegration({
- cspDirectives: {
-  'default-src': ['self'],
-  'script-src': ['self', 'unsafe-inline'],
-  'style-src': ['self', 'unsafe-inline'],
- },
-});
-
-// Set manifest when available
-devServer.setManifest(assetManifest);
-
-// Process HTML content
-const processedHTML = await devServer.processHTML(htmlContent, '/index.html');
-```
-
-### CLI Tool
-
-Use the CLI tool for post-build processing of final assets:
-
-```bash
-# Process HTML files and generate CSP headers
-npx csp-process dist/
-
-# Process with custom manifest
-npx csp-process dist/ --manifest .csp-manifest/manifest.json
-
-# Generate headers only
-npx csp-process dist/ --no-html --headers-output csp.json
-
-# Process to different output directory
-npx csp-process dist/ --output-dir dist-csp/
-```
-
-#### CLI Options
-
-| Option                    | Type      | Default                       | Description                          |
-| ------------------------- | --------- | ----------------------------- | ------------------------------------ |
-| `--output-dir <dir>`      | `string`  | `input-dir`                   | Output directory for processed files |
-| `--manifest <path>`       | `string`  | `.csp-manifest/manifest.json` | Path to CSP manifest file            |
-| `--no-html`               | `boolean` | `false`                       | Skip HTML file processing            |
-| `--no-headers`            | `boolean` | `false`                       | Skip CSP headers generation          |
-| `--headers-output <file>` | `string`  | `csp-headers.json`            | Output file for CSP headers          |
-| `--help, -h`              | `boolean` | `false`                       | Show help message                    |
-
-### Configuration Options
-
-| Option                | Type                           | Default                   | Description                                                              |
-| --------------------- | ------------------------------ | ------------------------- | ------------------------------------------------------------------------ |
-| `trackAssets`         | `boolean`                      | `true`                    | Whether to enable asset tracking                                         |
-| `generateCsp`         | `boolean`                      | `true`                    | Inject a CSP meta tag into built HTML                                    |
-| `emitHeadersFile`     | `boolean \| string`            | `'csp-headers.json'`      | Write `CspDirectiveHeaders` JSON beside `outDir`; `false` skips the file |
-| `cspProcessorOptions` | `Partial<CSPProcessorOptions>` | `{}`                      | CSP processor options                                                    |
-| `manifestDir`         | `string`                       | `outputDir/.csp-manifest` | Output directory for manifest files (defaults to build output directory) |
-| `devServer`           | `boolean`                      | `false`                   | Whether to enable dev server integration                                 |
-| `includePatterns`     | `Array<string \| RegExp>`      | `[]`                      | Patterns to include in tracking                                          |
-| `excludePatterns`     | `Array<string \| RegExp>`      | `[]`                      | Patterns to exclude from tracking                                        |
-| `assetTypeDetector`   | `function`                     | `default`                 | Custom asset type detection function                                     |
-
-## Architecture
-
-The unplugin package provides:
-
-1. **Build Tool Plugins**: Individual plugins for each build tool that track assets
-2. **Asset Tracker**: Common asset tracking logic shared across plugins
-3. **Manifest Writer**: Generates and manages asset manifests
-4. **Dev Server Integration**: Real-time HTML processing during development
-5. **CLI Tool**: Post-build processing for production assets
-6. **Post-Build Detector**: Scans built assets for missed resources
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Build the package
-pnpm run build
-
-# Run tests
-pnpm run test
-
-# Run linter
-pnpm run lint
-
-# Development mode with watch
-pnpm run dev
-```
-
-## License
-
-MIT
+For a prerendered Nuxt site, run the CLI on the published static directory
+after generation. The `/nuxt` export is an experimental build-hook helper
+requiring a Nuxt instance as its second argument. Nitro middleware, runtime
+SSR responses, and per-request nonces are outside the static workflow.

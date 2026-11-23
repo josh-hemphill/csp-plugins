@@ -9,8 +9,8 @@
 		"dist"
 	],
 	"type": "module",
-	"main": "dist/cli.mjs",
-	"types": "dist/cli.d.mts",
+	"main": "dist/index.mjs",
+	"types": "dist/index.d.mts",
 	"scripts": {
 		"build": "obuild",
 		"dev": "obuild --watch",

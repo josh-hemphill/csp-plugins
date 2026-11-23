@@ -153,7 +153,7 @@ describe('vite Plugin Integration Tests', () => {
 			const htmlContent = readFileSync(htmlFile, 'utf8');
 
 			// Should have basic HTML structure
-			expect(htmlContent).toContain('<!DOCTYPE html>');
+			expect(htmlContent).toMatch(/<!doctype html>/i);
 			expect(htmlContent).toContain('<html');
 		});
 

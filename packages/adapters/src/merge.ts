@@ -23,9 +23,11 @@ export function mergeJson(existing: string, headers: CspDirectiveHeaders): strin
 	if (existing.trim().length > 0) {
 		parsed = JSON.parse(existing) as unknown;
 	}
-	const base = isRecord(parsed) ? { ...parsed } : {};
-	for (const name of cspHeaderNames) {
-		delete base[name];
+	if (!isRecord(parsed)) throw new Error('Expected an existing JSON configuration object');
+	const base = { ...parsed };
+	const managed = new Set<string>(cspHeaderNames.map((name) => name.toLowerCase()));
+	for (const name of Object.keys(base)) {
+		if (managed.has(name.toLowerCase())) delete base[name];
 	}
 	return prettyJson({ ...base, ...emitJson(headers) });
 }
@@ -61,33 +63,40 @@ function mergeNamedHeaderList(
 	existing: NamedHeader[],
 	headers: CspDirectiveHeaders,
 ): NamedHeader[] {
-	const cspNames = new Set<string>(cspHeaderNames);
-	const kept = existing.filter((header) => !cspNames.has(header.key));
+	const cspNames = new Set<string>(cspHeaderNames.map((name) => name.toLowerCase()));
+	const kept = existing.filter((header) => !cspNames.has(header.key.toLowerCase()));
 	return [...kept, ...presentHeaders(headers).map(([key, value]) => ({ key, value }))];
 }
 
-function mergePathGroups(
+export function mergePathGroups(
 	existing: unknown,
 	source: string,
 	headers: CspDirectiveHeaders,
-): PathHeaderGroup[] {
-	const groups: PathHeaderGroup[] = [];
-	if (Array.isArray(existing)) {
-		for (const item of existing) {
-			if (!isRecord(item) || typeof item.source !== 'string') {
-				continue;
-			}
-			groups.push({ source: item.source, headers: asNamedHeaders(item.headers) });
-		}
+): unknown[] {
+	if (existing !== undefined && !Array.isArray(existing)) {
+		throw new Error('Expected the existing headers configuration to be an array');
 	}
-
-	const index = groups.findIndex((group) => group.source === source);
-	const mergedHeaders = mergeNamedHeaderList(index >= 0 ? groups[index].headers : [], headers);
+	const groups: unknown[] = Array.isArray(existing) ? [...existing] : [];
+	const indexes = groups.flatMap((group, index) =>
+		isRecord(group) &&
+		group.source === source &&
+		group.has === undefined &&
+		group.missing === undefined
+			? [index]
+			: [],
+	);
+	if (indexes.length > 1) throw new Error(`Multiple unconditional header rules for ${source}`);
+	const index = indexes[0] ?? -1;
 	if (index >= 0) {
-		groups[index] = { source, headers: mergedHeaders };
-		return groups;
+		const group = groups[index] as Record<string, unknown>;
+		groups[index] = {
+			...group,
+			headers: mergeNamedHeaderList(asNamedHeaders(group.headers), headers),
+		};
+	} else {
+		groups.push({ source, headers: mergeNamedHeaderList([], headers) } satisfies PathHeaderGroup);
 	}
-	return [...groups, { source, headers: mergedHeaders }];
+	return groups;
 }
 
 export function mergeVercel(
@@ -99,7 +108,8 @@ export function mergeVercel(
 	if (existing.trim().length > 0) {
 		parsed = JSON.parse(existing) as unknown;
 	}
-	const base = isRecord(parsed) ? { ...parsed } : {};
+	if (!isRecord(parsed)) throw new Error('Expected an existing JSON configuration object');
+	const base = { ...parsed };
 	const source =
 		options?.pathPrefix !== undefined && options.pathPrefix.length > 0
 			? options.pathPrefix
@@ -108,50 +118,115 @@ export function mergeVercel(
 	return prettyJson(base);
 }
 
+function updateFirebaseSite(
+	base: Record<string, unknown>,
+	options: HeaderAdapterOptions | undefined,
+	update: (site: Record<string, unknown>) => Record<string, unknown>,
+): void {
+	if (Array.isArray(base.hosting)) {
+		const matches = base.hosting.flatMap((site, index) =>
+			isRecord(site) &&
+			(options?.firebaseTarget !== undefined
+				? site.target === options.firebaseTarget
+				: options?.publicDir !== undefined && site.public === options.publicDir)
+				? [index]
+				: [],
+		);
+		if (matches.length !== 1)
+			throw new Error(
+				'Select exactly one Firebase Hosting site by target or its configured public directory',
+			);
+		base.hosting = base.hosting.map((site, index) =>
+			index === matches[0] ? update(site as Record<string, unknown>) : site,
+		);
+		return;
+	}
+	if (base.hosting !== undefined && !isRecord(base.hosting))
+		throw new Error('Invalid Firebase Hosting configuration');
+	const site = base.hosting ?? (options?.publicDir ? { public: options.publicDir } : {});
+	base.hosting = update(site);
+}
+
 export function mergeFirebase(
 	existing: string,
 	headers: CspDirectiveHeaders,
 	options?: HeaderAdapterOptions,
 ): string {
-	let parsed: unknown = {};
-	if (existing.trim().length > 0) {
-		parsed = JSON.parse(existing) as unknown;
-	}
-	const base = isRecord(parsed) ? { ...parsed } : {};
-	const hosting = isRecord(base.hosting) ? { ...base.hosting } : {};
-	const source =
-		options?.pathPrefix !== undefined && options.pathPrefix.length > 0
-			? options.pathPrefix
-			: '**';
-	hosting.headers = mergePathGroups(hosting.headers, source, headers);
-	base.hosting = hosting;
+	const parsed: unknown = existing.trim() ? JSON.parse(existing) : {};
+	if (!isRecord(parsed)) throw new Error('Expected an existing Firebase configuration object');
+	const base = { ...parsed };
+	updateFirebaseSite(base, options, (site) => ({
+		...site,
+		headers: mergePathGroups(site.headers, options?.pathPrefix || '**', headers),
+	}));
 	return prettyJson(base);
 }
 
-function parseNetlifyBlocks(existing: string): Array<{ path: string; lines: string[] }> {
-	const blocks: Array<{ path: string; lines: string[] }> = [];
-	let current: { path: string; lines: string[] } | undefined;
-	for (const rawLine of existing.split('\n')) {
-		const line = rawLine.replaceAll('\r', '');
-		if (line.trim().length === 0) {
-			if (current !== undefined) {
-				current.lines.push(line);
+export function prepareStructuredConfig(
+	id: 'vercel' | 'firebase',
+	existing: string,
+	previousRules: ReadonlyMap<string, CspDirectiveHeaders>,
+	nextPaths: ReadonlySet<string> | undefined,
+	options?: HeaderAdapterOptions,
+): string {
+	const parsed: unknown = existing.trim() ? JSON.parse(existing) : {};
+	if (!isRecord(parsed)) throw new Error(`Expected an existing ${id} configuration object`);
+	const prepare = (record: Record<string, unknown>) => {
+		const groups = record.headers;
+		if (groups === undefined) return record;
+		if (!Array.isArray(groups))
+			throw new Error('Expected the existing headers configuration to be an array');
+		const kept = groups.flatMap((group: unknown): unknown[] => {
+			if (!isRecord(group) || !Array.isArray(group.headers)) return [group];
+			const managed =
+				typeof group.source === 'string' &&
+				group.has === undefined &&
+				group.missing === undefined
+					? previousRules.get(group.source)
+					: undefined;
+			const values = new Map(
+				managed
+					? presentHeaders(managed).map(([key, value]) => [key.toLowerCase(), value])
+					: [],
+			);
+			const entries: unknown[] = group.headers.filter(
+				(entry: unknown) =>
+					!isRecord(entry) ||
+					typeof entry.key !== 'string' ||
+					!values.has(entry.key.toLowerCase()) ||
+					values.get(entry.key.toLowerCase()) !== entry.value,
+			);
+			const conflicting = entries.some(
+				(entry: unknown) =>
+					isRecord(entry) &&
+					typeof entry.key === 'string' &&
+					/^content-security-policy(?:-report-only)?$/i.test(entry.key),
+			);
+			if (
+				conflicting &&
+				nextPaths &&
+				(typeof group.source !== 'string' ||
+					!/^\/[\w.%/-]*$/.test(group.source) ||
+					nextPaths.has(group.source))
+			) {
+				throw new Error(
+					'An existing CSP rule overlaps generated routes. Remove or scope that rule before emitting a route policy.',
+				);
 			}
-			continue;
-		}
-		if (line.startsWith('#') && current === undefined) {
-			continue;
-		}
-		if (!line.startsWith(' ') && !line.startsWith('\t')) {
-			current = { path: line.trim(), lines: [] };
-			blocks.push(current);
-			continue;
-		}
-		if (current !== undefined) {
-			current.lines.push(line);
-		}
-	}
-	return blocks;
+			if (
+				managed &&
+				entries.length === 0 &&
+				Object.keys(group).every((key) => key === 'source' || key === 'headers')
+			)
+				return [];
+			return [{ ...group, headers: entries }];
+		});
+		return { ...record, headers: kept };
+	};
+	if (id === 'vercel') return prettyJson(prepare(parsed));
+	const base = { ...parsed };
+	updateFirebaseSite(base, options, prepare);
+	return prettyJson(base);
 }
 
 export function mergeNetlify(
@@ -159,37 +234,23 @@ export function mergeNetlify(
 	headers: CspDirectiveHeaders,
 	options?: HeaderAdapterOptions,
 ): string {
-	const pathPrefix =
-		options?.pathPrefix !== undefined && options.pathPrefix.length > 0
-			? options.pathPrefix
-			: '/*';
-	if (existing.trim().length === 0) {
-		return emitNetlify(headers, options);
-	}
-
-	const blocks = parseNetlifyBlocks(existing);
-	const cspNames = new Set<string>(cspHeaderNames);
-	const index = blocks.findIndex((block) => block.path === pathPrefix);
-	const cspLines = presentHeaders(headers).map(([name, value]) => `  ${name}: ${value}`);
-
+	const path = options?.pathPrefix || '/*';
+	const lines = existing.split(/\r?\n/);
+	const index = lines.findIndex((line) => line === path);
 	if (index < 0) {
-		const emitted = emitNetlify(headers, options).trimEnd();
-		return `${existing.trimEnd()}\n\n${emitted}\n`;
+		const emitted = emitNetlify(headers, options);
+		return existing.trimEnd() ? `${existing.trimEnd()}\n\n${emitted}` : emitted;
 	}
 
-	const kept = blocks[index].lines.filter((line) => {
-		const trimmed = line.trim();
-		if (trimmed.length === 0 || trimmed.startsWith('#')) {
-			return true;
-		}
-		const name = trimmed.split(':')[0]?.trim();
-		return name === undefined || !cspNames.has(name);
+	let stop = index + 1;
+	while (stop < lines.length && /^[ \t]/.test(lines[stop])) stop++;
+	const managedNames = new Set<string>(cspHeaderNames.map((name) => name.toLowerCase()));
+	const kept = lines.slice(index + 1, stop).filter((line) => {
+		const name = line.trim().split(':')[0]?.trim().toLowerCase();
+		return !managedNames.has(name);
 	});
-	blocks[index] = { path: pathPrefix, lines: [...kept, ...cspLines] };
-
-	return `${blocks
-		.map((block) => `${block.path}\n${block.lines.join('\n')}`.trimEnd())
-		.join('\n\n')}\n`;
+	const generated = presentHeaders(headers).map(([name, value]) => `  ${name}: ${value}`);
+	return [...lines.slice(0, index + 1), ...kept, ...generated, ...lines.slice(stop)].join('\n');
 }
 
 export function mergeSnippet(
@@ -198,19 +259,24 @@ export function mergeSnippet(
 	begin: string,
 	end: string,
 ): string {
-	const block = `${begin}\n${emitted.trimEnd()}\n${end}\n`;
-	if (existing.trim().length === 0) {
-		return block;
+	const block = `${begin}\n${emitted.trimEnd()}\n${end}`;
+	const beginMatches = [...existing.matchAll(new RegExp(`^${begin}$`, 'gm'))];
+	const endMatches = [...existing.matchAll(new RegExp(`^${end}$`, 'gm'))];
+	if (beginMatches.length === 0 && endMatches.length === 0) {
+		return existing.trimEnd() ? `${existing.trimEnd()}\n\n${block}\n` : `${block}\n`;
 	}
-	const start = existing.indexOf(begin);
-	const stop = existing.indexOf(end);
-	if (start >= 0 && stop > start) {
-		return `${existing.slice(0, start)}${block}${existing.slice(stop + end.length)}`.replace(
-			/\n{3,}/g,
-			'\n\n',
-		);
+	if (
+		beginMatches.length !== 1 ||
+		endMatches.length !== 1 ||
+		beginMatches[0].index >= endMatches[0].index
+	) {
+		throw new Error('Invalid CSP header block markers');
 	}
-	return `${existing.trimEnd()}\n\n${block}`;
+	return (
+		existing.slice(0, beginMatches[0].index) +
+		block +
+		existing.slice(endMatches[0].index + end.length)
+	);
 }
 
 export function mergeNginx(existing: string, headers: CspDirectiveHeaders): string {

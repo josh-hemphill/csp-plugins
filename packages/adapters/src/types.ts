@@ -13,6 +13,10 @@ export type AdapterId =
 
 export interface HeaderAdapterOptions {
 	pathPrefix?: string;
+	/** Firebase Hosting output directory relative to its configuration. */
+	publicDir?: string;
+	/** Firebase Hosting target when more than one site uses the same output directory. */
+	firebaseTarget?: string;
 }
 
 export interface HeaderAdapter {
