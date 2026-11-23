@@ -20,14 +20,25 @@ const merged = getAdapter('vercel').merge(existingVercelJson, headers);
 | `caddy` | `Caddyfile.csp` | `header { }` |
 | `express` | `csp-headers.middleware.mjs` | `res.setHeader` middleware |
 
-Merge keeps unrelated keys (or `_headers` paths) and replaces only CSP-related header names.
+The low-level merge takes a complete CSP header map and replaces the managed
+CSP, reporting, and referrer fields at the selected rule. Use static artifact
+merging to preserve user-managed policies and track generated rules across runs.
 
 Use `mergeStaticHeaders` for an artifact produced by the CLI or Vite. JSON
 preserves route maps. Netlify and Cloudflare Pages match clean URLs and
 directory index aliases. Vercel and Firebase emit exact HTML paths and index
-aliases. Pass a previously generated artifact when renewing structured config
-so superseded generated entries are removed. Site and overlap checks reject
-ambiguous merges. See the [CLI guide](../cli/README.md#hosting).
+aliases. Use `mergeStructuredStaticHeaders` when writing Vercel or Firebase
+config across builds. Store its returned `ownership` with the deployment and
+use it as the fifth argument on the next run. This removes superseded rules
+even after project routing settings change. Site and overlap checks reject
+ambiguous merges.
+
+```ts
+const { body, ownership } = mergeStructuredStaticHeaders(
+  'vercel', existingConfig, headerArtifact, { publicDir: 'dist' }, previousOwnership,
+);
+```
+ See the [CLI guide](../cli/README.md#hosting).
 
 The nginx, Apache, Caddy, and Express adapters emit a single-policy snippet.
 Import the Express module and register its middleware before serving static

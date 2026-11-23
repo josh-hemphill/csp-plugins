@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 
 import { existsSync } from 'node:fs';
-import { copyFile, lstat, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import {
+	copyFile,
+	lstat,
+	mkdir,
+	readdir,
+	readFile,
+	realpath,
+	stat,
+	writeFile,
+} from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +33,8 @@ import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
 import type { AssetManifest } from '@csp-plugins/shared/types';
 import type { CspDirectiveHeaders, CspDirectives } from '@csp-plugins/typed-directives';
 import log from 'loglevel';
+
+const BASE_METADATA = '.csp-headers-base.json';
 
 interface CliOptions {
 	/** Input directory containing built assets */
@@ -262,7 +273,8 @@ export class CliProcessor {
 		await this.applyPolicyFile();
 		const collectHeaders = generateHeaders !== false || emit.length > 0;
 		const files = new Map<string, string>();
-		await this.collectFiles(inputDir, outputDir, files);
+		const root = await realpath(inputDir);
+		await this.collectFiles(inputDir, outputDir, files, root, new Set());
 		const base = await this.resolvePublicBase(files);
 		if (inputDir !== outputDir) {
 			await this.checkPublishDirectory(outputDir, files);
@@ -281,7 +293,7 @@ export class CliProcessor {
 			}
 		}
 		const artifacts = collectHeaders
-			? await this.planHeaderOutputs(files)
+			? await this.planHeaderOutputs(files, base)
 			: new Map<string, string>();
 		for (const path of artifacts.keys()) {
 			if (
@@ -317,13 +329,19 @@ export class CliProcessor {
 		input: string,
 		output: string,
 		files: Map<string, string>,
+		root: string,
+		ancestors: Set<string>,
 	): Promise<void> {
+		const directory = await realpath(input);
+		if (ancestors.has(directory)) throw new Error(`Circular symlink in static input: ${input}`);
+		ancestors.add(directory);
 		for (const entry of await readdir(input, { withFileTypes: true })) {
 			const source = join(input, entry.name);
 			const dest = join(output, entry.name);
 			if (
 				(source === this.options.outputDir && input !== output) ||
 				source === join(this.options.inputDir, 'csp-headers.json') ||
+				source === join(this.options.inputDir, BASE_METADATA) ||
 				source === join(this.options.inputDir, '.csp-headers-state.json') ||
 				entry.name === '.csp-manifest' ||
 				entry.name === '.csp-cache' ||
@@ -332,9 +350,19 @@ export class CliProcessor {
 			)
 				continue;
 
-			if (entry.isDirectory()) await this.collectFiles(source, dest, files);
-			else if (entry.isFile()) files.set(dest, source);
+			if (entry.isSymbolicLink()) {
+				const target = relative(root, await realpath(source));
+				if (target === '..' || target.startsWith('..' + sep) || isAbsolute(target)) {
+					throw new Error(
+						`Static input symlink points outside the build directory: ${source}`,
+					);
+				}
+			}
+			const kind = entry.isSymbolicLink() ? await stat(source) : entry;
+			if (kind.isDirectory()) await this.collectFiles(source, dest, files, root, ancestors);
+			else if (kind.isFile()) files.set(dest, source);
 		}
+		ancestors.delete(directory);
 	}
 
 	private async checkPublishDirectory(
@@ -354,7 +382,20 @@ export class CliProcessor {
 	}
 
 	private async resolvePublicBase(files: ReadonlyMap<string, string>): Promise<string> {
-		const explicit = this.options.base ?? this.manifest?.publicBase;
+		const saved = join(this.options.inputDir, BASE_METADATA);
+		let explicit = this.options.base ?? this.manifest?.publicBase;
+		if (explicit === undefined && existsSync(saved)) {
+			const metadata: unknown = JSON.parse(await readFile(saved, 'utf8'));
+			if (
+				!metadata ||
+				typeof metadata !== 'object' ||
+				!('base' in metadata) ||
+				typeof metadata.base !== 'string'
+			) {
+				throw new Error(`Invalid deployment base metadata in ${saved}. Set --base explicitly.`);
+			}
+			explicit = metadata.base;
+		}
 		if (explicit !== undefined) {
 			if (!explicit.startsWith('/') || explicit.startsWith('//') || /[?#\\]/.test(explicit)) {
 				throw new Error('The deployment base must be a URL path such as / or /site/.');
@@ -481,9 +522,14 @@ export class CliProcessor {
 
 	private async planHeaderOutputs(
 		files: ReadonlyMap<string, string>,
+		base: string,
 	): Promise<Map<string, string>> {
 		const { emit = [], generateHeaders, headersOutput, outputDir, projectDir } = this.options;
-		const headers = staticHeaders(this.pageHeaders);
+		const standard = staticHeaders(this.pageHeaders);
+		const headers =
+			standard && base !== '/' && !('routes' in standard)
+				? { routes: Object.fromEntries(this.pageHeaders) }
+				: standard;
 		const writes = new Map<string, string>();
 		if (headers === undefined) {
 			if (emit.length > 0 || (headersOutput && existsSync(headersOutput)))
@@ -497,7 +543,7 @@ export class CliProcessor {
 		const previous =
 			remember && existsSync(statePath)
 				? (JSON.parse(await readFile(statePath, 'utf8')) as Partial<
-						Record<AdapterId, StructuredHeaderOwnership | StaticHeaderArtifact>
+						Record<string, StructuredHeaderOwnership | StaticHeaderArtifact>
 					>)
 				: {};
 		const next = { ...previous };
@@ -510,6 +556,11 @@ export class CliProcessor {
 			const config = existing && existsSync(existing) ? await readFile(existing, 'utf8') : '';
 			writes.set(headersOutput, mergeStaticHeaders('json', config, headers));
 		}
+		const baseOutput = join(outputDir, BASE_METADATA);
+		if (writes.has(baseOutput))
+			throw new Error(`Two generated outputs are configured for ${baseOutput}`);
+		writes.set(baseOutput, `${JSON.stringify({ base })}\n`);
+
 		for (const id of emit) {
 			if (id === 'json' || (id === 'netlify' && emit.includes('cloudflare-pages'))) continue;
 			const adapter = getAdapter(id);
@@ -536,17 +587,27 @@ export class CliProcessor {
 			const existing = onDisk || fromInput;
 			try {
 				if (id === 'vercel' || id === 'firebase') {
+					const publicDir = relative(base, outputDir).split(sep).join('/') || '.';
+					const key = id === 'firebase' ? `firebase:${publicDir}` : id;
+					const legacy = previous[id];
+					const owned = previous[key] ?? legacy;
 					const result = mergeStructuredStaticHeaders(
 						id,
 						existing,
 						headers,
-						{
-							publicDir: relative(base, outputDir).split(sep).join('/') || '.',
-						},
-						previous[id],
+						{ publicDir },
+						owned,
 					);
 					writes.set(dest, result.body);
-					next[id] = result.ownership;
+					next[key] = result.ownership;
+					if (
+						id === 'firebase' &&
+						legacy &&
+						'rules' in legacy &&
+						legacy.publicDir === publicDir
+					) {
+						delete next.firebase;
+					}
 				} else {
 					writes.set(dest, mergeStaticHeaders(id, existing, headers));
 				}

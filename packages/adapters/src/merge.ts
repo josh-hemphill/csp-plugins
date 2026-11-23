@@ -276,8 +276,23 @@ export function writeStructuredConfig(
 				return [];
 			return [{ ...group, headers: entries }];
 		});
+		// The browser default should not supersede an authored broader route rule.
+		const userReferrerPolicy = kept.some(
+			(group) =>
+				isRecord(group) &&
+				asNamedHeaders(group.headers).some(
+					(header) => header.key.toLowerCase() === 'referrer-policy',
+				),
+		);
+
 		for (const [source, headers] of nextRules) {
 			const effective: Partial<CspDirectiveHeaders> = { ...headers };
+			if (
+				userReferrerPolicy &&
+				effective['Referrer-Policy'] === 'strict-origin-when-cross-origin'
+			) {
+				delete effective['Referrer-Policy'];
+			}
 			const existing = kept.find(
 				(item) =>
 					isRecord(item) &&

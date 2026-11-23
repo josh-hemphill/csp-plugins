@@ -279,11 +279,23 @@ export function mergeStaticHeaders(
 				);
 			}
 		}
-		const hasReferrerPolicy = prefix.some((line) => /^\s*referrer-policy\s*:/i.test(line));
-		const hasReporting = prefix.some((line) => /^\s*report-to\s*:/i.test(line));
+		const auxiliary: Array<{ path: string; name: 'referrer-policy' | 'report-to' }> = [];
+		for (const line of prefix) {
+			if (line.trim() && !line.startsWith('#') && !/^\s/.test(line)) path = line.trim();
+			const name = /^\s*(referrer-policy|report-to)\s*:/i.exec(line)?.[1].toLowerCase();
+			if (name === 'referrer-policy' || name === 'report-to') auxiliary.push({ path, name });
+		}
 		const output = [...rules]
 			.map(([source, value]) => {
 				const effective: Partial<CspDirectiveHeaders> = { ...value };
+				const overlaps = auxiliary.filter(
+					(item) =>
+						item.path === source ||
+						!/^\/[\w.%/-]*$/.test(item.path) ||
+						!/^\/[\w.%/-]*$/.test(source),
+				);
+				const hasReferrerPolicy = overlaps.some((item) => item.name === 'referrer-policy');
+				const hasReporting = overlaps.some((item) => item.name === 'report-to');
 				if (
 					hasReferrerPolicy &&
 					effective['Referrer-Policy'] === 'strict-origin-when-cross-origin'

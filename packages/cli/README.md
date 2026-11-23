@@ -19,7 +19,7 @@ node /path/to/csp-plugins/packages/cli/dist/cli.mjs dist --no-html --emit vercel
 | Option | Behavior |
 | --- | --- |
 | `--output-dir <directory>` | Copy processed files and publish-directory artifacts there. Relative paths use the current working directory. Start each deployment with a clean output directory. |
-| `--base <path>` | Deployment URL prefix, such as `/site/`. The CLI uses Vite build metadata or a uniquely matching existing route map when available. Defaults to `/`. |
+| `--base <path>` | Deployment URL prefix, such as `/site/`. The CLI reuses Vite build metadata, a saved deployment base, or a uniquely matching existing route map. Defaults to `/`. |
 | `--project-dir <directory>` | Directory for Vercel or Firebase project config and generated rule state. Defaults to the current working directory. |
 | `--headers-output <file>` | Override the JSON destination. Defaults to `csp-headers.json` in the publish directory. |
 | `--no-html` | Analyze HTML and emit headers without rewriting it. Use this for an existing baked policy or inline hashes. |
@@ -52,7 +52,9 @@ Review native files before deploying. For structured project configs,
 `.csp-headers-state.json` records the generated policy values so later runs can
 remove stale generated rules while preserving unrelated existing settings.
 Keep this file alongside the project config between runs. The CLI owns the CSP
-fields in its JSON output and preserves other response headers in that file. For Netlify and
+fields in its JSON output and preserves other response headers in that file.
+The generated `.csp-headers-base.json` beside the pages keeps their deployment
+base stable across page additions and removals. For Netlify and
 Cloudflare Pages, generated rules live in a marked block in `_headers`.
 
 The CLI uses inline hashes for static pages. Existing user configuration can

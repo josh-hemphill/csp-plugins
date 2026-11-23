@@ -283,3 +283,92 @@ it('reruns from the inferred root after deleting a nested index and preserves an
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+it('keeps Firebase rule ownership for each selected site independently', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-firebase-sites-'));
+	try {
+		const sites = ['site-a', 'site-b'];
+		await writeFile(
+			join(root, 'firebase.json'),
+			JSON.stringify({
+				hosting: sites.map((site) => ({ target: site, public: site })),
+			}),
+		);
+		for (const site of sites) {
+			await mkdir(join(root, site));
+			await writeFile(join(root, site, 'index.html'), page(site));
+		}
+		for (const site of ['site-a', 'site-b', 'site-a']) {
+			const result = spawnSync(process.execPath, [cli, site, '--emit', 'firebase'], {
+				cwd: root,
+				encoding: 'utf8',
+			});
+			expect(result.status).toBe(0);
+		}
+		const config = JSON.parse(await readFile(join(root, 'firebase.json'), 'utf8'));
+		expect(config.hosting.map((site: { target: string }) => site.target)).toEqual(sites);
+		expect(config.hosting.map((site: { headers: unknown[] }) => site.headers.length)).toEqual([
+			1, 1,
+		]);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('keeps a saved mount across ambiguous changes and publishes contained linked files', async () => {
+	const { symlink } = await import('node:fs/promises');
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-links-'));
+	const dist = join(root, 'dist');
+	await mkdir(join(dist, 'app'), { recursive: true });
+	try {
+		await writeFile(join(dist, 'app', 'entry.js'), 'console.log("linked")');
+		await symlink('entry.js', join(dist, 'app', 'app.js'));
+		await writeFile(join(dist, 'index.html'), page('root'));
+		await writeFile(join(dist, 'app', 'index.html'), page('nested'));
+		await writeFile(join(dist, 'app', 'about.html'), page('about'));
+		const run = (...args: string[]) =>
+			spawnSync(process.execPath, [cli, 'dist', ...args], { cwd: root, encoding: 'utf8' });
+		expect(run('--base', '/app/', '--emit', 'netlify').status).toBe(0);
+		await rm(join(dist, 'index.html'));
+		await rm(join(dist, 'app', 'about.html'));
+		await writeFile(join(dist, 'app', 'new.html'), page('new'));
+		const next = run('--output-dir', 'publish', '--local-script-integrity', '--emit', 'netlify');
+		expect(next.status).toBe(0);
+		const out = join(root, 'publish');
+		expect(await readFile(join(out, 'app', 'app.js'), 'utf8')).toBe('console.log("linked")');
+		expect(await readFile(join(out, 'app', 'new.html'), 'utf8')).toContain(
+			hash('console.log("linked")'),
+		);
+		const config = await readFile(join(out, '_headers'), 'utf8');
+		expect(config).toMatch(/^\/app\/app\/new$/m);
+		expect(config).not.toMatch(/^\/app\/new$/m);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('ignores a base element blocked by base-uri when hashing a local file', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-base-uri-'));
+	try {
+		const dist = join(root, 'dist');
+		await mkdir(join(dist, 'unused'), { recursive: true });
+		await writeFile(
+			join(dist, 'index.html'),
+			page('root').replace('<head>', '<head><base href="/unused/">'),
+		);
+		await writeFile(join(dist, 'app.js'), 'root bytes');
+		await writeFile(join(dist, 'unused', 'app.js'), 'other bytes');
+		await writeFile(join(root, 'policy.json'), JSON.stringify({ 'base-uri': ['none'] }));
+		const result = spawnSync(
+			process.execPath,
+			[cli, 'dist', '--local-script-integrity', '--csp-policy-file', 'policy.json'],
+			{ cwd: root, encoding: 'utf8' },
+		);
+		expect(result.status).toBe(0);
+		const html = await readFile(join(dist, 'index.html'), 'utf8');
+		expect(html).toContain(hash('root bytes'));
+		expect(html).not.toContain(hash('other bytes'));
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

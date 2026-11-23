@@ -455,12 +455,17 @@ export class CSPProcessor {
 
 	/** The first HTML base URL, if present. */
 	getDocumentBase(document: Document): string | undefined {
-		const node = findOne(
-			(element) => element.name === 'base' && element.attribs.href !== undefined,
-			document.children,
-			true,
-		);
-		return node?.attribs.href;
+		const head = findOne((element) => element.name === 'head', document.children, true);
+		for (const child of head?.children ?? this.implicitHeadElements(document)) {
+			if (
+				child.type === ElementType.Tag &&
+				child.name === 'base' &&
+				child.attribs.href !== undefined
+			) {
+				return child.attribs.href;
+			}
+		}
+		return undefined;
 	}
 
 	/**

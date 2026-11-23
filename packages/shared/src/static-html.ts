@@ -129,10 +129,39 @@ export async function processStaticHtml(
 	const document = processor.parseHTML(html);
 	const base = processor.getDocumentBase(document);
 	if (base !== undefined) {
+		let candidate: URL | undefined;
 		try {
-			assetBase = new URL(base, pageUrl);
+			candidate = new URL(base, pageUrl);
 		} catch {
 			// Browsers fall back to the document URL if the base cannot be parsed.
+		}
+		if (candidate && ['http:', 'https:'].includes(candidate.protocol)) {
+			const directive = options.baseDirectives?.CSP?.['base-uri'];
+			const sources = (Array.isArray(directive) ? directive : [directive])
+				.filter((source): source is NonNullable<typeof source> => source !== undefined)
+				.map((source) => source.replace(/^'|'$/g, ''));
+			const matches =
+				sources.length === 0 ||
+				sources.some(
+					(source) =>
+						source === '*' ||
+						(source === 'self' && candidate.origin === pageUrl.origin) ||
+						source === candidate.protocol ||
+						source === candidate.origin,
+				);
+			if (matches) {
+				assetBase = candidate;
+			} else if (
+				sources.some(
+					(source) =>
+						!['none', 'self', 'http:', 'https:'].includes(source) &&
+						!/^https?:\/\/[^/*]+$/.test(source),
+				)
+			) {
+				throw new Error(
+					`Cannot resolve the HTML base URL safely with the configured base-uri for ${pagePath}`,
+				);
+			}
 		}
 	}
 	const authored = processor.getMetaPoliciesToPreserve(
