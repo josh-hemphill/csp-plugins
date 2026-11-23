@@ -1,3 +1,6 @@
+import { dirname, resolve } from 'node:path';
+
+import { generateHash } from '@csp-plugins/core';
 import { CommonAssetTracker } from '@csp-plugins/shared/asset-tracker';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
 import type { CspPluginOptions } from '@csp-plugins/shared/types';
@@ -7,102 +10,33 @@ import type { Plugin } from 'rollup';
  * Rollup plugin for CSP asset tracking
  */
 export default function cspRollupPlugin(options: CspPluginOptions = {}): Plugin {
-	const tracker = new CommonAssetTracker('rollup', options);
 	const manifestWriter = new ManifestWriter(options.manifestDir);
 
 	return {
 		name: 'csp-rollup',
 
-		// Track assets during build
-		generateBundle(options, bundle) {
-			if (!tracker.getOptions().trackAssets) {
-				return;
-			}
-
-			const outputDir = options.dir ?? 'dist';
-
-			// Track all generated assets
-			for (const [fileName, asset] of Object.entries(bundle)) {
-				if (asset.type === 'asset') {
-					const source =
-						typeof asset.source === 'string' ? asset.source : asset.source.toString();
-					const hash =
-						'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
+		generateBundle: {
+			order: 'post',
+			async handler(output, bundle, isWrite) {
+				const tracker = new CommonAssetTracker('rollup', options);
+				const settings = tracker.getOptions();
+				if (!settings.trackAssets || !isWrite) return;
+				for (const file of Object.values(bundle)) {
+					const content = file.type === 'chunk' ? file.code : file.source;
 					tracker.trackAsset({
-						id: fileName,
-						path: fileName,
-						type: tracker.getOptions().assetTypeDetector(fileName, source),
+						id: file.fileName,
+						path: file.fileName,
+						type:
+							file.type === 'chunk' ? 'script' : settings.assetTypeDetector(file.fileName),
 						inline: false,
-						hash,
-						mimeType: asset.type,
-						source,
-					});
-				} else if (asset.type === 'chunk') {
-					const hash =
-						'hash' in asset && typeof asset.hash === 'string' ? asset.hash : undefined;
-					tracker.trackAsset({
-						id: fileName,
-						path: fileName,
-						type: 'script',
-						inline: false,
-						hash,
-						mimeType: 'application/javascript',
-						source: asset.code,
+						hash: await generateHash(content, 'sha256'),
+						source: typeof content === 'string' ? content : undefined,
 					});
 				}
-			}
-
-			// Write manifest
-			const manifest = tracker.generateManifest(outputDir);
-			manifestWriter
-				.writeManifest(manifest)
-				.catch((error: unknown) => console.error('Failed to write manifest:', error));
-		},
-
-		// Track inline assets
-		transform(code, id) {
-			if (!tracker.getOptions().trackAssets) {
-				return null;
-			}
-
-			// Track inline scripts and styles
-			if (
-				id.endsWith('.js') ||
-				id.endsWith('.ts') ||
-				id.endsWith('.jsx') ||
-				id.endsWith('.tsx')
-			) {
-				tracker.trackAsset({
-					id,
-					path: id,
-					type: 'script',
-					inline: true,
-					source: code,
-				});
-			} else if (
-				id.endsWith('.css') ||
-				id.endsWith('.scss') ||
-				id.endsWith('.sass') ||
-				id.endsWith('.less')
-			) {
-				tracker.trackAsset({
-					id,
-					path: id,
-					type: 'style',
-					inline: true,
-					source: code,
-				});
-			}
-
-			return null;
-		},
-
-		// Cleanup
-		closeBundle() {
-			// Optional: cleanup old manifests
-			manifestWriter
-				.cleanupOldManifests()
-				.catch((error: unknown) => console.error('Failed to cleanup manifests:', error));
+				const outputDir = output.dir ?? (output.file ? dirname(output.file) : resolve('dist'));
+				const manifest = await tracker.generateManifest(outputDir);
+				await manifestWriter.writeManifest({ ...manifest, outputPath: resolve(outputDir) });
+			},
 		},
 	};
 }

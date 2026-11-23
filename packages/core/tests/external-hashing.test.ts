@@ -56,7 +56,8 @@ describe('external Hashing', () => {
 		const html = '<script src="https://example.com/script.js"></script>';
 		const result = await processor.processHTML(html);
 
-		expect(result.analysis.scriptSources[0].hash).toBeDefined();
+		expect(result.analysis.scriptSources[0].hash).toMatch(/^sha256-/);
+		expect(result.analysis.scriptSources[0].hash?.startsWith('sha256-sha256-')).toBe(false);
 	});
 
 	it('should respect include/exclude patterns', async () => {
@@ -66,6 +67,7 @@ describe('external Hashing', () => {
 					scripts: true,
 					includePatterns: ['example.com'],
 					excludePatterns: ['blocked.com'],
+					hashGenerator: async () => 'sha256-fixture',
 				},
 			},
 		});

@@ -1,0 +1,45 @@
+name: Release
+
+# Local version/changelog stay on the developer machine (`pnpm exec monup version` /
+# `pnpm exec monup changelog`) once @monup/cli is installable.
+# CI publish is workflow_dispatch only and defaults to dry-run until the packages are ready
+# for a first public npm/JSR release. Do not add a tag-push publish trigger yet.
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Dry-run only (no npm/JSR publish, no GitHub releases)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Monup ${{ inputs.dry-run && 'dry-run' || 'publish' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/setup@v2
+        with:
+          runtime: node@24
+          cache: true
+          require-lockfile: true
+          registry-url: https://registry.npmjs.org
+      - run: pnpm run build:all
+      - name: Check Monup CLI is installable
+        run: |
+          echo 'Skipping live publish: @monup/cli@0.3.0 still ships catalog:/workspace:* dependencies.'
+          echo 'Re-enable the monup release steps after a rewritten publish. See docs/publishing.md.'
+        # Restore the following once `pnpm add -wD @monup/cli --save-catalog-name dev` succeeds:
+        # - run: pnpm exec monup release ${{ inputs.dry-run && '--dry-run' || '' }} --log-level debug
+        # - run: pnpm exec monup github --log-level debug
+        #   if: ${{ !inputs.dry-run }}

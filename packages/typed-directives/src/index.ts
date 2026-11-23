@@ -148,8 +148,8 @@ export class CspDirectives {
 					? normalizeArrayString(roValue).length > 0
 					: ![false, null, undefined, ''].includes(roValue as never);
 				if (hasRoValue) {
-					results['Content-Security-Policy-Report-Only'] +=
-						result || (getRes(this.ReportOnly), result);
+					getRes(this.ReportOnly);
+					results['Content-Security-Policy-Report-Only'] += result;
 				}
 			}
 		});

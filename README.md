@@ -2,7 +2,15 @@
 
 Monorepo for generating typed Content-Security-Policy meta tags and headers from HTML and build assets.
 
-This is an unpublished rewrite of [vite-plugin-csp](https://github.com/josh-hemphill/csp-plugins). Product work (strict zero-config CSP, host adapters) is tracked in [`docs/next-work.md`](docs/next-work.md).
+This is an unpublished rewrite of [vite-plugin-csp](https://www.npmjs.com/package/vite-plugin-csp).
+See the [build plugin guide](packages/unplugin/README.md) and [CLI and hosting guide](packages/cli/README.md).
+
+| Workflow | Build integration | Deployment integration |
+| --- | --- | --- |
+| Vite 8 static build | HTML CSP, final-asset manifest, and route headers | JSON or CLI host output |
+| Webpack 5, Rollup 4, esbuild 0.28 | Final-asset manifest | CLI on emitted static HTML |
+| Prerendered Nuxt or other static generators | CLI on the final publish directory | CLI host output |
+| Runtime SSR | Server integration is future work | Define CSP on the server response |
 
 ## Requirements
 
@@ -20,9 +28,11 @@ pnpm lint:markdown
 pnpm spell
 pnpm fmt:check
 pnpm test
+pnpm test:coverage
+pnpm docs:api
 ```
 
-`pnpm build` covers `@csp-plugins/typed-directives`, `@csp-plugins/core`, `@csp-plugins/shared`, and `@csp-plugins/basic-fscache`. `pnpm build:all` also builds `@csp-plugins/cli` and `@csp-plugins/unplugin` (CI uses this). `pnpm test` runs unit tests for typed-directives, core, and basic-fscache. E2e is present but not in the default test pipeline.
+`pnpm build` covers `@csp-plugins/typed-directives`, `@csp-plugins/core`, `@csp-plugins/shared`, and `@csp-plugins/basic-fscache`. `pnpm build:all` also builds `@csp-plugins/adapters`, `@csp-plugins/cli`, and `@csp-plugins/unplugin` (CI uses this). `pnpm test` runs unit tests for typed-directives, core, shared, basic-fscache, adapters, unplugin, and the workspace scripts. `pnpm test:coverage` adds V8 coverage (Cobertura + HTML + JSON) for typed-directives, core, shared, basic-fscache, and adapters; CI uploads that report to GitHub Code Quality on Node 24. `pnpm docs:api` generates TypeDoc HTML for `@csp-plugins/typed-directives` (deployed from `main` to GitHub Pages).
 
 ## Packages
 
@@ -32,9 +42,20 @@ pnpm test
 | `@csp-plugins/core` | HTML analysis, hashes/nonces, meta-tag injection |
 | `@csp-plugins/shared` | Asset tracking and `.csp-manifest` I/O |
 | `@csp-plugins/basic-fscache` | Optional filesystem cache for fetched externals |
+| `@csp-plugins/adapters` | Emit `CspDirectiveHeaders` as Netlify/Vercel/nginx/… config (`build:all`; unit-tested) |
 | `@csp-plugins/cli` | Post-build HTML + `csp-headers.json` (`build:all`, not default `test`) |
-| `@csp-plugins/unplugin` | Vite / Webpack / Rollup / esbuild / Nuxt plugins (`build:all`, not default `test`) |
+| `@csp-plugins/unplugin` | Vite HTML processing, Webpack / Rollup / esbuild asset tracking, and an experimental Nuxt hook |
 
 ## Architecture
 
-See [`CORE_MODULE_FLOW.md`](CORE_MODULE_FLOW.md). Dual-publish (npm dist + JSR TypeScript source) is documented in [`docs/publishing.md`](docs/publishing.md).
+See [`CORE_MODULE_FLOW.md`](CORE_MODULE_FLOW.md). Dual-publish (npm dist + JSR TypeScript source) is documented in [`docs/publishing.md`](docs/publishing.md). API docs for `@csp-plugins/typed-directives` are generated with TypeDoc (`pnpm docs:api`) and published to GitHub Pages from `main`.
+
+Local release prep is [Monup](https://github.com/josh-hemphill/monup) (`pnpm exec monup version` then `pnpm exec monup changelog`) once `@monup/cli` is installable — see [`docs/publishing.md`](docs/publishing.md). CI publish is a manual workflow and stays dry-run until the packages are ready for a first public npm/JSR release.
+
+## Contributors
+
+The [contributors list](CONTRIBUTORS.md) is generated from the GitHub contributors API on pushes to `main`. Do not edit it by hand.
+
+<!-- CONTRIBUTORS:START -->
+  - <img src="https://avatars.githubusercontent.com/u/46608115?v=4" width="24" height="24" alt=""> [josh-hemphill](https://github.com/josh-hemphill)
+<!-- CONTRIBUTORS:END -->

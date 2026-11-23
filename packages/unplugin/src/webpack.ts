@@ -1,3 +1,6 @@
+import { resolve } from 'node:path';
+
+import { generateHash } from '@csp-plugins/core';
 import { CommonAssetTracker } from '@csp-plugins/shared/asset-tracker';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
 import type { CspPluginOptions } from '@csp-plugins/shared/types';
@@ -11,105 +14,43 @@ export default function cspWebpackPlugin(options: CspPluginOptions = {}): Webpac
  * Webpack plugin for CSP asset tracking and dev server integration
  */
 export class CspWebpackPlugin implements WebpackPluginInstance {
-	private tracker: CommonAssetTracker;
 	private options: CspPluginOptions;
 
 	constructor(options: CspPluginOptions = {}) {
 		this.options = options;
-		this.tracker = new CommonAssetTracker('webpack', options);
 	}
 
 	apply(compiler: Compiler): void {
-		// Track assets during build
-		compiler.hooks.afterEmit.tap('CspWebpackPlugin', (compilation: Compilation) => {
-			if (!this.tracker.getOptions().trackAssets) {
-				return;
-			}
+		compiler.hooks.thisCompilation.tap('CspWebpackPlugin', (compilation: Compilation) => {
+			compilation.hooks.processAssets.tapPromise(
+				{
+					name: 'CspWebpackPlugin',
+					stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT,
+				},
+				async () => {
+					const tracker = new CommonAssetTracker('webpack', this.options);
+					const settings = tracker.getOptions();
+					if (!settings.trackAssets) return;
 
-			const outputPath = compilation.outputOptions.path ?? 'dist';
-
-			// Create manifest writer with output directory if not specified
-			const finalManifestDir = this.options.manifestDir ?? '.csp-manifest';
-			const manifestWriter = new ManifestWriter(finalManifestDir);
-
-			// Track emitted assets
-			for (const fileName of Object.keys(compilation.assets)) {
-				const asset = compilation.assets[fileName];
-				const source = asset.source();
-				const sourceString = typeof source === 'string' ? source : source.toString();
-
-				this.tracker.trackAsset({
-					id: fileName,
-					path: fileName,
-					type: this.tracker.getOptions().assetTypeDetector(fileName, sourceString),
-					inline: false,
-					hash: typeof compilation.hash === 'string' ? compilation.hash : undefined,
-					mimeType: this.getMimeType(fileName),
-					source: sourceString,
-				});
-			}
-
-			// Track chunks
-			for (const chunk of compilation.chunks) {
-				if (
-					chunk.files !== undefined &&
-					chunk.files !== null &&
-					Array.from(chunk.files).length > 0
-				) {
-					for (const file of chunk.files) {
-						this.tracker.trackAsset({
-							id: file,
-							path: file,
-							type: 'script',
+					const outputPath =
+						compilation.outputOptions.path ?? resolve(compiler.context, 'dist');
+					const manifestWriter = new ManifestWriter(
+						resolve(compiler.context, settings.manifestDir),
+					);
+					for (const asset of compilation.getAssets()) {
+						const bytes = asset.source.buffer();
+						tracker.trackAsset({
+							id: asset.name,
+							path: asset.name,
+							type: settings.assetTypeDetector(asset.name),
 							inline: false,
-							hash: typeof compilation.hash === 'string' ? compilation.hash : undefined,
-							mimeType: 'application/javascript',
+							hash: await generateHash(bytes, 'sha256'),
+							mimeType: this.getMimeType(asset.name),
 						});
 					}
-				}
-			}
-
-			// Write manifest
-			const manifest = this.tracker.generateManifest(outputPath);
-			manifestWriter
-				.writeManifest(manifest)
-				.catch((error: unknown) => console.error('Failed to write manifest:', error));
-		});
-
-		// Dev server integration
-		if (this.options.devServer) {
-			compiler.hooks.watchRun.tap('CspWebpackPlugin', () => {
-				// Track files that changed during watch mode
-				if (compiler.watchFileSystem) {
-					const watchFileSystem = compiler.watchFileSystem as {
-						watcher?: { mtimes?: Record<string, unknown> };
-					};
-					const watcher = watchFileSystem.watcher;
-					if (watcher?.mtimes) {
-						for (const [file] of Object.entries(watcher.mtimes)) {
-							if (file.endsWith('.js') || file.endsWith('.css')) {
-								this.tracker.trackAsset({
-									id: file,
-									path: file,
-									type: this.tracker.getOptions().assetTypeDetector(file),
-									inline: false,
-								});
-							}
-						}
-					}
-				}
-			});
-		}
-
-		// Cleanup
-		compiler.hooks.done.tap('CspWebpackPlugin', () => {
-			// Optional: cleanup old manifests
-			const outputPath = compiler.options.output?.path ?? 'dist';
-			const finalManifestDir = this.options.manifestDir ?? `${outputPath}/.csp-manifest`;
-			const manifestWriter = new ManifestWriter(finalManifestDir);
-			manifestWriter
-				.cleanupOldManifests()
-				.catch((error: unknown) => console.error('Failed to cleanup manifests:', error));
+					await manifestWriter.writeManifest(await tracker.generateManifest(outputPath));
+				},
+			);
 		});
 	}
 

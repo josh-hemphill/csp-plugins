@@ -1,4 +1,4 @@
-import type { CSPProcessorOptions } from '@csp-plugins/core';
+import type { CSPProcessorOptions, HashSource } from '@csp-plugins/core';
 
 /**
  * Asset information tracked during build
@@ -12,8 +12,8 @@ export interface TrackedAsset {
 	type: 'script' | 'style' | 'image' | 'font' | 'media' | 'document' | 'worker' | 'other';
 	/** Whether this is an inline asset */
 	inline: boolean;
-	/** Content hash if available */
-	hash?: string;
+	/** Content hash (`sha256|sha384|sha512-<base64>`) once hashing has settled */
+	hash?: HashSource;
 	/** MIME type if known */
 	mimeType?: string;
 	/** Source code if inline or accessible */
@@ -34,6 +34,10 @@ export interface AssetManifest {
 	buildTime: number;
 	/** Output directory */
 	outputDir: string;
+	/** Absolute path of the output at build time, when available. */
+	outputPath?: string;
+	/** Deployment URL prefix known to the bundler. */
+	publicBase?: string;
 	/** All tracked assets */
 	assets: TrackedAsset[];
 	/** CSP processor options */
@@ -60,12 +64,16 @@ export interface CspPluginOptions {
 	trackAssets?: boolean;
 	/** Whether to generate CSP directives during build */
 	generateCsp?: boolean;
+	/** Write static CSP headers JSON in the Vite output. `false` skips the file. */
+	emitHeadersFile?: boolean | string;
 	/** CSP processor options */
 	cspProcessorOptions?: CSPProcessorOptions;
 	/** Output directory for manifest files */
 	manifestDir?: string;
 	/** Whether to enable dev server integration */
 	devServer?: boolean;
+	/** Options for the Vite dev HTML policy. Production ignores these. */
+	devCspProcessorOptions?: CSPProcessorOptions;
 	/** Patterns to include/exclude from tracking */
 	includePatterns?: Array<string | RegExp>;
 	excludePatterns?: Array<string | RegExp>;
@@ -77,12 +85,14 @@ export interface CspPluginOptions {
  * Asset tracker interface that all plugins implement
  */
 export interface AssetTracker {
-	/** Track a new asset */
-	trackAsset: (asset: Omit<TrackedAsset, 'timestamp' | 'buildTool'>) => void;
+	/** Track a new asset. Bundler hashes that are not CSP sources are ignored when source is present. */
+	trackAsset: (
+		asset: Omit<TrackedAsset, 'timestamp' | 'buildTool' | 'hash'> & { hash?: string },
+	) => void;
 	/** Get all tracked assets */
 	getAssets: () => TrackedAsset[];
-	/** Generate asset manifest */
-	generateManifest: (outputDir: string) => AssetManifest;
+	/** Generate asset manifest after pending hashes settle */
+	generateManifest: (outputDir: string) => Promise<AssetManifest>;
 	/** Clear tracked assets */
 	clear: () => void;
 }

@@ -70,7 +70,7 @@ describe('cLI Integration Tests', () => {
 			try {
 				const { stdout } = await $`node ${CLI_PATH} --help`;
 				expect(stdout).toContain('CSP Post-Build Processor');
-				expect(stdout).toContain('Usage: csp-process [options] <input-directory>');
+				expect(stdout).toContain('Usage: csp-cli [options] <input-directory>');
 				expect(stdout).toContain('--help, -h');
 			} catch (error) {
 				// If CLI exits with help, that's expected
@@ -93,7 +93,7 @@ describe('cLI Integration Tests', () => {
 			expect(existsSync(htmlPath)).toBe(true);
 
 			const htmlContent = readFileSync(htmlPath, 'utf8');
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 			expect(htmlContent).toContain('Content-Security-Policy');
 		});
 
@@ -128,7 +128,7 @@ describe('cLI Integration Tests', () => {
 			expect(existsSync(htmlPath)).toBe(true);
 
 			const htmlContent = readFileSync(htmlPath, 'utf8');
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 			expect(htmlContent).toContain('Content-Security-Policy');
 
 			// Check that headers file was not generated
@@ -193,7 +193,7 @@ describe('cLI Integration Tests', () => {
 			expect(htmlContent).toContain('Content-Security-Policy');
 
 			// Check nonces
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 		});
 
 		it('should handle large asset manifests', async () => {
@@ -247,28 +247,20 @@ describe('cLI Integration Tests', () => {
 	});
 
 	describe('cLI Output Validation', () => {
-		it('should generate nonces for scripts and styles', async () => {
+		it('should emit static hash policies without fixed nonces', async () => {
 			const isolatedDir = await buildTestAppInIsolation('nonce-validation-test');
 
 			// Run CLI
 			await $`node ${CLI_PATH} ${isolatedDir} --manifests-dir ${isolatedDir}/.csp-manifest`;
 
-			// Check that HTML was processed with nonces
+			// Check that static HTML was processed
 			const htmlPath = join(isolatedDir, 'index.html');
 			expect(existsSync(htmlPath)).toBe(true);
 
 			const htmlContent = readFileSync(htmlPath, 'utf8');
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 
-			// Extract nonces and verify they're unique
-			const nonceMatches = htmlContent.match(/nonce-[^"&]+/g);
-			expect(nonceMatches).toBeDefined();
-			expect(nonceMatches!.length).toBeGreaterThan(0);
-
-			// Check that nonces are unique
-			const nonces = nonceMatches!.map((match) => match.replace('nonce-', '')).filter(Boolean);
-			const uniqueNonces = new Set(nonces);
-			expect(uniqueNonces.size).toBeGreaterThan(0);
+			expect(htmlContent).toContain("script-src 'self'");
 		});
 
 		it('should handle integrity attributes when enabled', async () => {
@@ -282,7 +274,7 @@ describe('cLI Integration Tests', () => {
 			expect(existsSync(htmlPath)).toBe(true);
 
 			const htmlContent = readFileSync(htmlPath, 'utf8');
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 			expect(htmlContent).toContain('Content-Security-Policy');
 
 			// Note: Integrity attributes may not be present depending on the build output

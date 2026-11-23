@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { toHashSource } from '@csp-plugins/core';
 import { ManifestWriter } from '@csp-plugins/shared/manifest-writer';
 import { PostBuildDetector } from '@csp-plugins/shared/post-build-detector';
 import type { AssetManifest, TrackedAsset } from '@csp-plugins/shared/types';
@@ -64,7 +65,7 @@ export class CliUtils {
 		if (scripts.length > 0) {
 			directives['script-src'] = scripts.map((script) => {
 				if (script.inline && script.hash !== undefined) {
-					return `'sha256-${script.hash}'`;
+					return `'${toHashSource(script.hash)}'`;
 				}
 				return script.path;
 			});
@@ -74,7 +75,7 @@ export class CliUtils {
 		if (styles.length > 0) {
 			directives['style-src'] = styles.map((style) => {
 				if (style.inline && style.hash !== undefined) {
-					return `'sha256-${style.hash}'`;
+					return `'${toHashSource(style.hash)}'`;
 				}
 				return style.path;
 			});

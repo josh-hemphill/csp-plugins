@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
 	DirectiveMap,
+	CspDirectives,
 	type DirectiveName,
 	type DirectiveResult,
 	type ReportTos,
@@ -122,4 +123,11 @@ describe('DirectiveMap.get()', () => {
 			expect(result).toBe('hello world');
 		});
 	});
+});
+
+it('serializes enforcement and report-only directives independently', () => {
+	const directives = new CspDirectives({ 'script-src': ['self'] }, [], { 'script-src': ['none'] });
+	const headers = directives.getHeaders();
+	expect(headers['Content-Security-Policy']).toBe("script-src 'self';");
+	expect(headers['Content-Security-Policy-Report-Only']).toBe("script-src 'none';");
 });

@@ -133,7 +133,7 @@ export async function validateCSP(
 		});
 
 		// Wait a bit for any CSP violations to be captured
-		await page.waitForTimeout(1000);
+		await new Promise((resolve) => setTimeout(resolve, 1000));
 
 		// Extract CSP policy from meta tag or response headers
 		const cspPolicy = await page.evaluate(() => {

@@ -121,9 +121,7 @@ describe('cLI Specific Functionality Tests', () => {
 
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
-
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -141,7 +139,7 @@ describe('cLI Specific Functionality Tests', () => {
 			expect(stdout).toContain('CSP processing complete');
 
 			// Validate outputs in separate directory
-			const headersFile = join(isolatedDir, 'csp-headers.json');
+			const headersFile = join(outputDir, 'csp-headers.json');
 			const htmlFile = join(outputDir, 'index.html');
 
 			// Check headers file exists
@@ -153,9 +151,8 @@ describe('cLI Specific Functionality Tests', () => {
 
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
-
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
+			expect(htmlContent).not.toContain("'unsafe-inline'");
 		});
 	});
 
@@ -199,8 +196,8 @@ describe('cLI Specific Functionality Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -249,8 +246,8 @@ describe('cLI Specific Functionality Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 
@@ -323,8 +320,8 @@ describe('cLI Specific Functionality Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 
 		it('should handle verbose flag correctly', async () => {
@@ -350,8 +347,8 @@ describe('cLI Specific Functionality Tests', () => {
 			// Check meta tag
 			expect(htmlContent).toContain('Content-Security-Policy');
 
-			// Check nonces - the format is nonce-... (no quotes)
-			expect(htmlContent).toContain('nonce-');
+			// Static output uses hashes.
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 });

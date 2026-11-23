@@ -14,6 +14,7 @@ syncInjectedDepsAfterScripts:
 catalogs:
   build:
     obuild: ^0.4.39
+    typedoc: ^0.28.20
     typescript: ~6.0.3
   dev:
     cspell: ^10.3.0
@@ -38,6 +39,7 @@ catalogs:
     vite-plugin-inspect: ^12.0.2
     webpack: ^5.110.3
   test:
+    '@vitest/coverage-v8': ^5.0.0
     puppeteer: ^25.10.0
     vitest: ^5.0.0
   types:

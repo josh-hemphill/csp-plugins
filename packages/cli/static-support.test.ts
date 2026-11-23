@@ -1,0 +1,603 @@
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { expect, it } from 'vitest';
+
+const cli = fileURLToPath(new URL('./dist/cli.mjs', import.meta.url));
+const hash = (bytes: string | Uint8Array) =>
+	`sha256-${createHash('sha256').update(bytes).digest('base64')}`;
+const page = (title: string) =>
+	`<!doctype html><html><head><link rel="stylesheet" href="./app.css?t=1"></head><body><script>console.log("${title}")</script><script src="./app.js"></script></body></html>`;
+
+it('processes final static bytes and emits route policies beside the correct configuration', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-routes-'));
+	const input = join(root, 'input');
+	const out = join(root, 'publish');
+	const originalVercel = {
+		cleanUrls: false,
+		trailingSlash: true,
+		headers: [
+			{
+				source: '/private',
+				has: [{ type: 'header', key: 'x-test' }],
+				headers: [{ key: 'X-Fixture', value: 'yes' }],
+			},
+		],
+	};
+	const run = (...args: string[]) =>
+		spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8' });
+	await mkdir(join(input, 'about'), { recursive: true });
+	await writeFile(join(root, 'vercel.json'), JSON.stringify(originalVercel));
+	try {
+		for (const [dir, title] of [
+			[input, 'home'],
+			[join(input, 'about'), 'about'],
+		]) {
+			await writeFile(join(dir, 'index.html'), page(title));
+			await writeFile(join(dir, 'app.js'), `console.log("${title}-external")`);
+			await writeFile(join(dir, 'app.css'), `/* ${title} */\r\nbody { color: red }`);
+		}
+		const result = run(
+			'input',
+			'--output-dir',
+			'publish',
+			'--local-script-integrity',
+			'--emit',
+			'netlify,vercel',
+		);
+		expect(result.stderr).not.toContain('Cannot generate');
+		expect(result.status).toBe(0);
+		const { routes } = JSON.parse(await readFile(join(out, 'csp-headers.json'), 'utf8'));
+		expect(Object.keys(routes)).toEqual(['/about/index.html', '/index.html']);
+		for (const [dir, route] of [
+			[out, '/index.html'],
+			[join(out, 'about'), '/about/index.html'],
+		]) {
+			const html = await readFile(join(dir, 'index.html'), 'utf8');
+			for (const name of ['app.js', 'app.css']) {
+				const integrity = hash(await readFile(join(dir, name)));
+				expect(html).toContain(`integrity="${integrity}"`);
+				expect(routes[route]['Content-Security-Policy']).toContain(integrity);
+			}
+		}
+		const vercel = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
+		expect(vercel.headers[0]).toEqual(originalVercel.headers[0]);
+		expect(vercel.headers.map((rule: { source: string }) => rule.source)).toContain('/about/');
+		expect(await readFile(join(out, '_headers'), 'utf8')).toContain('/about/index.html');
+		expect(await readFile(join(input, 'index.html'), 'utf8')).toBe(page('home'));
+		expect(run('input', '--emit', 'constructor').status).toBe(1);
+		await rm(join(input, 'about'), { recursive: true });
+		await writeFile(join(input, 'app.js'), 'console.log("updated")');
+		const stale = run('input', '--output-dir', 'publish', '--emit', 'vercel');
+		expect(stale.status).toBe(1);
+		expect(stale.stderr).toContain('old HTML page');
+		await rm(out, { recursive: true });
+		const next = run(
+			'input',
+			'--output-dir',
+			'publish',
+			'--local-script-integrity',
+			'--emit',
+			'vercel',
+		);
+		expect(next.status).toBe(0);
+		const nextHeaders = await readFile(join(out, 'csp-headers.json'), 'utf8');
+		expect(nextHeaders).toContain(hash('console.log("updated")'));
+		expect(nextHeaders).not.toContain('routes');
+		const config = JSON.parse(await readFile(join(root, 'vercel.json'), 'utf8'));
+		expect(config.headers).toHaveLength(2);
+		expect(config.headers[0]).toEqual(originalVercel.headers[0]);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('validates malformed host configuration before rewriting HTML or creating outputs', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-invalid-config-'));
+	const input = join(root, 'dist');
+	await mkdir(input);
+	await writeFile(join(input, 'index.html'), page('home'));
+	await writeFile(join(root, 'vercel.json'), '{');
+	try {
+		const result = spawnSync(process.execPath, [cli, 'dist', '--emit', 'netlify,vercel'], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain('Cannot generate vercel headers');
+		expect(await readFile(join(input, 'index.html'), 'utf8')).toBe(page('home'));
+		await expect(readFile(join(input, '_headers'))).rejects.toThrow(/ENOENT/);
+		await expect(readFile(join(input, 'csp-headers.json'))).rejects.toThrow(/ENOENT/);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('keeps authored policies, unrelated JSON headers, and the configured output on rerun', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-owned-output-'));
+	const dist = join(root, 'dist');
+	await mkdir(dist);
+	const authored = page('authored').replace(
+		'<head>',
+		`<head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'">`,
+	);
+	const run = (...args: string[]) =>
+		spawnSync(process.execPath, [cli, 'dist', ...args], { cwd: root, encoding: 'utf8' });
+	try {
+		await writeFile(join(dist, 'index.html'), authored);
+		await writeFile(join(dist, 'custom.json'), JSON.stringify({ 'X-Frame-Options': 'DENY' }));
+		for (let runIndex = 0; runIndex < 2; runIndex++) {
+			expect(run('--headers-output', 'dist/custom.json').status).toBe(0);
+			expect(await readFile(join(dist, 'index.html'), 'utf8')).toBe(authored);
+			expect(JSON.parse(await readFile(join(dist, 'custom.json'), 'utf8'))).toMatchObject({
+				'Content-Security-Policy': "default-src 'none'; script-src 'none'",
+				'X-Frame-Options': 'DENY',
+			});
+		}
+		await writeFile(
+			join(root, 'vercel.json'),
+			JSON.stringify({
+				headers: [
+					{
+						source: '/(.*)',
+						headers: [{ key: 'Content-Security-Policy', value: "default-src 'none'" }],
+					},
+				],
+			}),
+		);
+		const conflict = run('--emit', 'vercel');
+		expect(conflict.status).toBe(1);
+		expect(conflict.stderr).toContain('overlaps');
+		expect(await readFile(join(dist, 'index.html'), 'utf8')).toBe(authored);
+		expect(run('--no-html', '--local-script-integrity').status).toBe(1);
+		const badParent = join(root, 'blocked');
+		await writeFile(badParent, 'not a directory');
+		expect(
+			run('--replace-existing', '--headers-output', join(badParent, 'headers.json')).status,
+		).toBe(1);
+		expect(await readFile(join(dist, 'index.html'), 'utf8')).toBe(authored);
+		expect(run('--replace-existing', '--headers-output', 'dist/custom.json').status).toBe(0);
+		expect(await readFile(join(dist, 'index.html'), 'utf8')).toContain('data-csp-plugins="cli"');
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('selects CSP options from the manifest for the requested build only', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-manifest-selection-'));
+	const dir = join(root, '.csp-manifest');
+	await mkdir(dir);
+	try {
+		for (const name of ['one', 'two']) {
+			await mkdir(join(root, name));
+			await writeFile(join(root, name, 'index.html'), page(name));
+			await writeFile(
+				join(dir, name + '.json'),
+				JSON.stringify({
+					buildTool: 'vite',
+					buildTime: Date.now(),
+					outputDir: name,
+					assets: [],
+					cspProcessorOptions: {
+						baseDirectives: { CSP: { 'script-src': [`https://${name}.invalid`] } },
+					},
+				}),
+			);
+		}
+		const result = spawnSync(process.execPath, [cli, 'two'], { cwd: root, encoding: 'utf8' });
+		expect(result.status).toBe(0);
+		const headers = await readFile(join(root, 'two', 'csp-headers.json'), 'utf8');
+		expect(headers).toContain('https://two.invalid');
+		expect(headers).not.toContain('https://one.invalid');
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('exports a previously baked CLI policy in headers-only mode', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-baked-policy-'));
+	await mkdir(join(root, 'dist'));
+	const input = join(root, 'dist', 'index.html');
+	await writeFile(input, page('strict'));
+	await writeFile(join(root, 'strict.json'), JSON.stringify({ 'default-src': ['none'] }));
+	const run = (...args: string[]) =>
+		spawnSync(process.execPath, [cli, 'dist', ...args], { cwd: root, encoding: 'utf8' });
+	try {
+		expect(run('--csp-policy-file', 'strict.json').status).toBe(0);
+		const before = await readFile(input, 'utf8');
+		expect(run('--no-html', '--emit', 'cloudflare-pages').status).toBe(0);
+		expect(await readFile(input, 'utf8')).toBe(before);
+		expect(await readFile(join(root, 'dist', '_headers'), 'utf8')).toContain(
+			"default-src 'none'",
+		);
+		expect(await readFile(join(root, 'dist', '_headers'), 'utf8')).not.toContain(
+			"script-src 'self'",
+		);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('retains the deployment base during Vite-to-CLI host emission', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-base-'));
+	const dist = join(root, 'dist');
+	await mkdir(dist);
+	const previous = {
+		routes: {
+			'/site/index.html': { 'Content-Security-Policy': "script-src 'none'" },
+			'/site/about.html': { 'Content-Security-Policy': "script-src 'self'" },
+		},
+	};
+	try {
+		await writeFile(join(dist, 'csp-headers.json'), JSON.stringify(previous));
+		for (const [filename, url] of [
+			['index.html', '/site/index.html'],
+			['about.html', '/site/about.html'],
+		] as const) {
+			const policy = previous.routes[url]['Content-Security-Policy'];
+			await writeFile(
+				join(dist, filename),
+				`<!doctype html><html><head><meta data-csp-plugins="vite" http-equiv="Content-Security-Policy" content="${policy}"></head></html>`,
+			);
+		}
+		const result = spawnSync(process.execPath, [cli, 'dist', '--emit', 'cloudflare-pages'], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+		expect(result.status).toBe(0);
+		const config = await readFile(join(dist, '_headers'), 'utf8');
+		expect(config).toMatch(/^\/site\/about$/m);
+		expect(config).not.toMatch(/^\/about$/m);
+		const json = JSON.parse(await readFile(join(dist, 'csp-headers.json'), 'utf8'));
+		expect(json.routes['/site/index.html']['Content-Security-Policy']).toBe("script-src 'none'");
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('reruns from the inferred root after deleting a nested index and preserves an implicit-head policy', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-route-removal-'));
+	const dist = join(root, 'dist');
+	await mkdir(join(dist, 'news'), { recursive: true });
+	const strict = "default-src 'none'; script-src 'none';";
+	const original = `<!doctype html>\n<title>Fixture</title><meta http-equiv="Content-Security-Policy" content="${strict}"><p>Hello</p>`;
+	const run = () =>
+		spawnSync(process.execPath, [cli, 'dist', '--emit', 'netlify'], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+	try {
+		await writeFile(join(dist, 'index.html'), original);
+		await writeFile(join(dist, 'news', 'index.html'), page('news'));
+		expect(run().status).toBe(0);
+		await rm(join(dist, 'news'), { recursive: true });
+		expect(run().status).toBe(0);
+		expect(await readFile(join(dist, 'index.html'), 'utf8')).toBe(original);
+		const generated = await readFile(join(dist, '_headers'), 'utf8');
+		expect(generated).toContain(strict);
+		expect(generated).not.toContain('/news');
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('keeps Firebase rule ownership for each selected site independently', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-firebase-sites-'));
+	try {
+		const sites = ['site-a', 'site-b'];
+		await writeFile(
+			join(root, 'firebase.json'),
+			JSON.stringify({
+				hosting: sites.map((site) => ({ target: site, public: site })),
+			}),
+		);
+		for (const site of sites) {
+			await mkdir(join(root, site));
+			await writeFile(join(root, site, 'index.html'), page(site));
+		}
+		for (const site of ['site-a', 'site-b', 'site-a']) {
+			const result = spawnSync(process.execPath, [cli, site, '--emit', 'firebase'], {
+				cwd: root,
+				encoding: 'utf8',
+			});
+			expect(result.status).toBe(0);
+		}
+		const config = JSON.parse(await readFile(join(root, 'firebase.json'), 'utf8'));
+		expect(config.hosting.map((site: { target: string }) => site.target)).toEqual(sites);
+		expect(config.hosting.map((site: { headers: unknown[] }) => site.headers.length)).toEqual([
+			1, 1,
+		]);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('keeps a saved mount across ambiguous changes and publishes contained linked files', async () => {
+	const { symlink } = await import('node:fs/promises');
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-links-'));
+	const dist = join(root, 'dist');
+	await mkdir(join(dist, 'app'), { recursive: true });
+	try {
+		await writeFile(join(dist, 'app', 'entry.js'), 'console.log("linked")');
+		await symlink('entry.js', join(dist, 'app', 'app.js'));
+		await writeFile(join(dist, 'index.html'), page('root'));
+		await writeFile(join(dist, 'app', 'index.html'), page('nested'));
+		await writeFile(join(dist, 'app', 'about.html'), page('about'));
+		const run = (...args: string[]) =>
+			spawnSync(process.execPath, [cli, 'dist', ...args], { cwd: root, encoding: 'utf8' });
+		expect(run('--base', '/app/', '--emit', 'netlify').status).toBe(0);
+		await rm(join(dist, 'index.html'));
+		await rm(join(dist, 'app', 'about.html'));
+		await writeFile(join(dist, 'app', 'new.html'), page('new'));
+		const next = run('--output-dir', 'publish', '--local-script-integrity', '--emit', 'netlify');
+		expect(next.status).toBe(0);
+		const out = join(root, 'publish');
+		expect(await readFile(join(out, 'app', 'app.js'), 'utf8')).toBe('console.log("linked")');
+		expect(await readFile(join(out, 'app', 'new.html'), 'utf8')).toContain(
+			hash('console.log("linked")'),
+		);
+		const config = await readFile(join(out, '_headers'), 'utf8');
+		expect(config).toMatch(/^\/app\/app\/new$/m);
+		expect(config).not.toMatch(/^\/app\/new$/m);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('ignores a base element blocked by base-uri when hashing a local file', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-base-uri-'));
+	try {
+		const dist = join(root, 'dist');
+		await mkdir(join(dist, 'unused'), { recursive: true });
+		await writeFile(
+			join(dist, 'index.html'),
+			page('root').replace('<head>', '<head><base href="/unused/">'),
+		);
+		await writeFile(join(dist, 'app.js'), 'root bytes');
+		await writeFile(join(dist, 'unused', 'app.js'), 'other bytes');
+		await writeFile(join(root, 'policy.json'), JSON.stringify({ 'base-uri': ['none'] }));
+		const result = spawnSync(
+			process.execPath,
+			[cli, 'dist', '--local-script-integrity', '--csp-policy-file', 'policy.json'],
+			{ cwd: root, encoding: 'utf8' },
+		);
+		expect(result.status).toBe(0);
+		const html = await readFile(join(dist, 'index.html'), 'utf8');
+		expect(html).toContain(hash('root bytes'));
+		expect(html).not.toContain(hash('other bytes'));
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('retains the destination mount on a separate-output replay and emits single-page snippets', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-publish-mount-'));
+	const input = join(root, 'dist');
+	await mkdir(input);
+	await writeFile(join(input, 'index.html'), page('mounted'));
+	const run = (...args: string[]) =>
+		spawnSync(
+			process.execPath,
+			[
+				cli,
+				'dist',
+				'--output-dir',
+				'publish',
+				'--emit',
+				'netlify,nginx,apache,caddy,express',
+				...args,
+			],
+			{
+				cwd: root,
+				encoding: 'utf8',
+			},
+		);
+	try {
+		expect(run('--base', '/site/').status).toBe(0);
+		expect(run().status).toBe(0);
+		const output = join(root, 'publish');
+		expect(await readFile(join(output, '_headers'), 'utf8')).toMatch(/^\/site\/$/m);
+		for (const file of [
+			'csp-headers.nginx.conf',
+			'csp-headers.apache.conf',
+			'Caddyfile.csp',
+			'csp-headers.middleware.mjs',
+		]) {
+			expect(await readFile(join(output, file), 'utf8')).toContain('Content-Security-Policy');
+		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('rejects origin-dependent bases and aliases without a trailing slash with unstable local URLs before writing', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-ambiguous-assets-'));
+	const dist = join(root, 'dist');
+	await mkdir(join(dist, 'docs'), { recursive: true });
+	const input = join(dist, 'docs', 'index.html');
+	const original = page('docs');
+	const run = (...args: string[]) =>
+		spawnSync(process.execPath, [cli, 'dist', '--local-script-integrity', ...args], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+	try {
+		const withBase = original.replace('<head>', '<head><base href="/docs/">');
+		await writeFile(input, withBase);
+		await writeFile(
+			join(root, 'policy.json'),
+			JSON.stringify({ 'base-uri': ['https://example.org'] }),
+		);
+		const origin = run('--csp-policy-file', 'policy.json');
+		expect(origin.status).toBe(1);
+		expect(origin.stderr).toContain('deployment origin');
+		expect(await readFile(input, 'utf8')).toBe(withBase);
+
+		await writeFile(input, original);
+		await writeFile(
+			join(root, 'vercel.json'),
+			JSON.stringify({ cleanUrls: true, trailingSlash: false }),
+		);
+		const aliasResult = run('--emit', 'vercel');
+		expect(aliasResult.status).toBe(1);
+		expect(aliasResult.stderr).toContain('resolves differently');
+		expect(await readFile(input, 'utf8')).toBe(original);
+
+		await writeFile(input, original.replaceAll('./app.', '/docs/app.'));
+		expect(run('--emit', 'vercel').status).toBe(0);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('preserves authored SRI without reinterpreting an authored base policy', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-authored-base-'));
+	await mkdir(join(root, 'dist', 'sub'), { recursive: true });
+	const input = join(root, 'dist', 'index.html');
+	const original = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="base-uri 'none'; style-src 'self'"><base href="/sub/"><link rel="stylesheet" href="style.css" integrity="${hash('root')}"></head></html>`;
+	try {
+		await writeFile(input, original);
+		await writeFile(join(root, 'dist', 'style.css'), 'root');
+		await writeFile(join(root, 'dist', 'sub', 'style.css'), 'other');
+		const result = spawnSync(process.execPath, [cli, 'dist'], { cwd: root, encoding: 'utf8' });
+		expect(result.status).toBe(0);
+		expect(await readFile(input, 'utf8')).toBe(original);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('validates aliases from a copied structured config on the first and subsequent runs', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-copied-config-'));
+	const input = join(root, 'dist');
+	await mkdir(join(input, 'docs'), { recursive: true });
+	await writeFile(join(input, 'index.html'), page('home'));
+	await writeFile(join(input, 'docs', 'post.html'), page('post'));
+	await writeFile(
+		join(input, 'vercel.json'),
+		JSON.stringify({
+			cleanUrls: true,
+			trailingSlash: true,
+			outputDirectory: '.',
+			rewrites: [
+				{ source: '/docs/:id', destination: '/docs/post.html' },
+				{ source: '/:id', destination: '/index.html' },
+			],
+		}),
+	);
+	const run = () =>
+		spawnSync(
+			process.execPath,
+			[cli, 'dist', '--output-dir', 'out', '--project-dir', 'out', '--emit', 'vercel'],
+			{
+				cwd: root,
+				encoding: 'utf8',
+			},
+		);
+	try {
+		const failed = run();
+		expect(failed.status).toBe(1);
+		expect(failed.stderr).toContain('resolves differently at /docs/post/');
+		await expect(readFile(join(root, 'out', 'vercel.json'))).rejects.toThrow(/ENOENT/);
+
+		await writeFile(
+			join(input, 'docs', 'post.html'),
+			page('post').replaceAll('./app.', '/docs/app.'),
+		);
+		expect(run().status).toBe(0);
+		expect(run().status).toBe(0);
+		const config = JSON.parse(await readFile(join(root, 'out', 'vercel.json'), 'utf8'));
+		expect(config.headers.map((rule: { source: string }) => rule.source)).toContain(
+			'/docs/post/',
+		);
+		const changed = JSON.parse(await readFile(join(input, 'vercel.json'), 'utf8'));
+		changed.rewrites.reverse();
+		await writeFile(join(input, 'vercel.json'), JSON.stringify(changed));
+		expect(run().stderr).toContain('contain different configuration');
+		changed.rewrites.pop();
+		await writeFile(join(input, 'vercel.json'), JSON.stringify(changed));
+		expect(run().stderr).toContain('contain different configuration');
+		expect(JSON.parse(await readFile(join(root, 'out', 'vercel.json'), 'utf8'))).toEqual(config);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('rejects a whitespace-prefixed network base when base-uri self depends on deployment origin', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-network-base-'));
+	const input = join(root, 'dist');
+	await mkdir(input);
+	const html = page('site').replace('<head>', '<head><base href="  //example.invalid/">');
+	await writeFile(join(input, 'index.html'), html);
+	await writeFile(join(root, 'policy.json'), JSON.stringify({ 'base-uri': ['self'] }));
+	try {
+		const result = spawnSync(
+			process.execPath,
+			[cli, 'dist', '--local-script-integrity', '--csp-policy-file', 'policy.json'],
+			{
+				cwd: root,
+				encoding: 'utf8',
+			},
+		);
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain('deployment origin');
+		expect(await readFile(join(input, 'index.html'), 'utf8')).toBe(html);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('uses an authored base for Vercel aliases and verifies existing SRI without rewriting the page', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-authored-alias-'));
+	const dist = join(root, 'dist');
+	await mkdir(join(dist, 'docs'), { recursive: true });
+	const input = join(dist, 'docs', 'index.html');
+	const content = 'console.log("docs")';
+	const original = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="base-uri 'self'; script-src 'self'"><base href="/docs/"></head><body><script src="./app.js" integrity="${hash(content)}"></script></body></html>`;
+	const run = () =>
+		spawnSync(process.execPath, [cli, 'dist', '--emit', 'vercel', '--local-script-integrity'], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+	try {
+		await writeFile(input, original);
+		await writeFile(join(dist, 'index.html'), '<!doctype html><title>Home</title><p>Home</p>');
+		await writeFile(join(dist, 'docs', 'app.js'), content);
+		expect(run().status).toBe(0);
+		const config = await readFile(join(root, 'vercel.json'), 'utf8');
+		expect(JSON.parse(config).headers.map((rule: { source: string }) => rule.source)).toEqual(
+			expect.arrayContaining(['/docs', '/docs/']),
+		);
+		expect(await readFile(input, 'utf8')).toBe(original);
+
+		await writeFile(join(dist, 'docs', 'app.js'), 'console.log("changed")');
+		const stale = run();
+		expect(stale.status).toBe(1);
+		expect(stale.stderr).toContain('Cannot verify integrity');
+		expect(await readFile(input, 'utf8')).toBe(original);
+		expect(await readFile(join(root, 'vercel.json'), 'utf8')).toBe(config);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('rejects stale authored local stylesheet integrity without touching the authored HTML', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-authored-style-'));
+	const input = join(root, 'dist');
+	await mkdir(input);
+	const html = `<!doctype html><head><meta http-equiv="Content-Security-Policy" content="style-src 'self'"><link rel="stylesheet" href="/app.css" integrity="${hash('old')}"></head>`;
+	try {
+		await writeFile(join(input, 'index.html'), html);
+		await writeFile(join(input, 'app.css'), 'new');
+		const result = spawnSync(process.execPath, [cli, 'dist'], { cwd: root, encoding: 'utf8' });
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain('Cannot verify integrity for /app.css');
+		expect(await readFile(join(input, 'index.html'), 'utf8')).toBe(html);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

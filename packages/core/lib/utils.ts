@@ -10,7 +10,8 @@ export function deepMerge(
 	const source = sources.shift();
 
 	if (isObject(target) && isObject(source)) {
-		for (const key in source) {
+		for (const key of Object.keys(source)) {
+			if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
 			if (isObject(source[key])) {
 				if (target[key] === undefined || !isObject(target[key]))
 					Object.assign(target, { [key]: {} });

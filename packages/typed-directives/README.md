@@ -97,7 +97,7 @@ reportTo?.values; // [{ displayName, consumes, compose }, ...]
 
 ## Changelog
 
-See [CHANGELOG.md](./CHANGELOG.md) (includes the pre-monorepo `csp-typed-directives` 1.x history). TypeDoc HTML API docs will be restored before the first public release.
+See [CHANGELOG.md](./CHANGELOG.md) (includes the pre-monorepo `csp-typed-directives` 1.x history). TypeDoc HTML is generated from the workspace root with `pnpm docs:api`.
 
 ## License
 

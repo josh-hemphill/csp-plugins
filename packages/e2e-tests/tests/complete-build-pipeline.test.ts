@@ -163,7 +163,7 @@ describe('complete Build Pipeline Tests', () => {
 			// Check that HTML was processed
 			const htmlContent = readFileSync(htmlFile, 'utf8');
 			expect(htmlContent).toContain('Content-Security-Policy');
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 		});
 
 		it('should handle CSP configuration', async () => {
@@ -205,7 +205,7 @@ describe('complete Build Pipeline Tests', () => {
 			// Check processed HTML
 			const htmlContent = readFileSync(htmlFile, 'utf8');
 			expect(htmlContent).toContain('Content-Security-Policy');
-			expect(htmlContent).toContain('nonce-');
+			expect(htmlContent).not.toContain('nonce-');
 		});
 	});
 

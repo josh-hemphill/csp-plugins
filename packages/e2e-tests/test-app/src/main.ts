@@ -14,9 +14,13 @@ if (app) {
       <div class="card">
         <p class="text-primary">Testing CSS imports and external resources.</p>
       </div>
-      <button onclick="alert('Button clicked!')">Test Button</button>
+      <button id="test-button">Test Button</button>
     </div>
   `;
+
+	app.querySelector('#test-button')?.addEventListener('click', () => {
+		console.log('Button clicked');
+	});
 
 	// Add the fade-in class after a short delay to test CSS animations
 	setTimeout(() => {

@@ -16,7 +16,7 @@ Do **not** reopen these unless something is broken:
 | Lint | **OxLint** + **oxfmt** (not type-aware yet) | Same oxc family as obuild. Type-aware lint needs TypeScript 7 / `oxlint-tsgolint`. |
 | Markdown | **markdownlint-cli2** | Linter. oxfmt can wrap Markdown via bundled Prettier, but that is not a lint replacement and native Markdown formatting is still unshipped — keep ignoring `*.md` in oxfmt. |
 | Spelling | **cspell** | Root `pnpm spell`; CI runs it. |
-| Release | Deferred (Monup is the likely replacement) | Do not wire npm/JSR publish until packages are ready. Do not reintroduce bumpp/changelogithub. |
+| Release | **Monup** (`pnpm version`, `pnpm changelog`; CI `release.yml` dry-run by default) | Local version/changelog for review. Do not flip the workflow to a real publish until the packages are ready. Do not reintroduce bumpp/changelogithub. |
 | TypeScript | **6.0.x** (not 7) | Last JS-based compiler; `stableTypeOrdering` + no `baseUrl` for TS 7. 7.0 is still `tsgo`. |
 | Dual-publish | npm `dist` + JSR source (`typed-directives` first) | See [`docs/publishing.md`](publishing.md). |
 
@@ -26,20 +26,20 @@ Pin files: `package.json#packageManager`, `package.json#devEngines`, `.node-vers
 
 Keep this DAG: **typed-directives → core → (shared, basic-fscache) → (cli \| unplugin) → e2e**.
 
-Do **not** merge `shared` into `core`, merge `cli` into `unplugin`, add `@csp-plugins/headers`, or start `packages/adapters/` until Area 5. `CspDirectiveHeaders` stays in typed-directives. `CspPluginOptions` currently lives in `packages/shared/src/types.ts` — Area 3 should edit that file or move the type then, not fork a second options interface. Area 5 emitters belong in `packages/adapters/`, not a package named `headers`.
+Do **not** merge `shared` into `core`, merge `cli` into `unplugin`, or add `@csp-plugins/headers`. Area 5 emitters live in `packages/adapters/`. `CspDirectiveHeaders` stays in typed-directives.
 
-`pnpm build` is the four-package baseline. `pnpm build:all` also compiles cli + unplugin so their export maps fail in CI; their product tests stay out of `pnpm test`. `packages/e2e-tests/test-app` is a workspace member (`@csp-plugins/e2e-test-app`).
+`pnpm build` is the four-package baseline. `pnpm build:all` also compiles adapters, cli, and unplugin so their export maps fail in CI. CLI product tests stay out of `pnpm test`; adapters and the Vite plugin are in `pnpm test`. `packages/e2e-tests/test-app` is a workspace member (`@csp-plugins/e2e-test-app`).
 
-## Reintroduce soon (stripped leftovers)
+## Restored orchestration (done before product Areas 1–5)
 
-Do this on the new product branch **before** first publish. Do not treat the cleanup commit as dropping these for good.
+These were stripped in the cleanup commit and restored on the new `main` line before first publish:
 
-| Restore | How | Why |
-| --- | --- | --- |
-| Unit-test coverage | Vitest coverage (`@vitest/coverage-v8` or the then-current provider) + **integrated** CI reports (GitHub Actions / similar). Not Codecov. | Core libraries need published coverage. |
-| API docs | TypeDoc or equivalent, starting with `@csp-plugins/typed-directives` | The pre-monorepo package shipped TypeDoc HTML; restore that surface. Keep the existing `packages/typed-directives/CHANGELOG.md` (csp-typed-directives 1.x history). |
-| Contributor list | Automate inclusion (all-contributors **or** a GitHub-native equivalent) | No hand-maintained empty list. |
-| Release automation | Monup (version → changelog → npm/JSR → GitHub). Local `version`/`changelog`, CI publish. | Replaces the deleted copy-pasted `scripts/release.ts` / `changelog.ts`. |
+| Restore | How |
+| --- | --- |
+| Unit-test coverage | Vitest `@vitest/coverage-v8`. `pnpm test:coverage` writes Cobertura + HTML + JSON. CI (Node 24) uploads the report with `actions/upload-code-coverage` and a job summary. Not Codecov. |
+| API docs | TypeDoc for `@csp-plugins/typed-directives` (`pnpm docs:api` → `api-docs/`). `.github/workflows/docs.yml` deploys GitHub Pages from `main`. Keep `packages/typed-directives/CHANGELOG.md`. |
+| Contributor list | GitHub-native: `scripts/contributors.ts` reads the contributors API and writes `CONTRIBUTORS.md` plus the marked README block. `.github/workflows/contributors.yml` refreshes it on `main`. |
+| Release automation | Monup config + gated `release.yml`. Local `pnpm exec monup version` / `changelog` once `@monup/cli` publishes rewritten deps (`0.3.0` still has `catalog:` / `workspace:*`). |
 
 ## Goal
 
@@ -50,7 +50,7 @@ A developer can add one plugin (or one CLI invocation) and get a **strict** Cont
   - `@csp-plugins/typed-directives` already maps typed directives to `CspDirectiveHeaders`.
   - `@csp-plugins/core` already parses HTML, hashes/nonces, injects `<meta>`, and can hash externals.
   - CLI already writes `csp-headers.json`. Bundler plugins only write `.csp-manifest`.
-  - Plugins do **not** transform HTML (`generateCsp` is unused). Manifest hashes are often raw base64. Auto-manifest still allows `'unsafe-inline'`.
+  - Vite injects a CSP meta tag and writes `csp-headers.json`. Manifest hashes are `sha256-<base64>`. CLI auto-manifest uses `'self'` (no `'unsafe-inline'`) until a policy file opts in. `--emit netlify,vercel` writes host files from the same header map.
 
 ## Stack graph
 
@@ -75,6 +75,7 @@ Areas 3 and 5 conflict if both invent header-file formats; Area 1 owns the canon
 
 ### Area 1: Hash and header contract
 
+  - Status: **done on this line** — `generateHash` returns `sha256|sha384|sha512-<base64>`, `toHashSource` is idempotent, `CommonAssetTracker.generateManifest` awaits pending hashes, integrity/CSP sources reuse the same string (no double-prefix). Shared now has a Vitest project.
   - Goal: Every hash that appears in a manifest, integrity attribute, or CSP source is `sha256|sha384|sha512-<base64>`. `getHeaders()` is the only public header map.
   - Depends on: nothing (baseline)
   - Out of scope: plugin HTML transform, host files, changing default directives
@@ -103,6 +104,7 @@ interface CSPResult {
 
 ### Area 2: Strict defaults in core
 
+  - Status: **done on this line** — default `script-src` / `style-src` are `'self'` plus hashes/nonces. `'unsafe-inline'` / `'unsafe-eval'` stay behind `development.allowUnsafeInline` / `allowUnsafeEval`. `generateHeaders: true` still uses `builder.getHeaders()`.
   - Goal: Default policy is `'self'` + hashes/nonces. `'unsafe-inline'` / `'unsafe-eval'` only behind `development.allowUnsafeInline` / `allowUnsafeEval`.
   - Depends on: Area 1
   - Out of scope: bundler plugins, host adapters, SSR nonce sessions
@@ -119,6 +121,7 @@ interface CSPResult {
 
 ### Area 3: Build-time HTML + headers (Vite first)
 
+  - Status: **done on this line** — Vite `transformIndexHtml` injects the CSP meta tag, `generateCsp` defaults **true**, `emitHeadersFile` writes `csp-headers.json` beside `outDir`, and the unplugin Hello stub is gone.
   - Goal: `cspVitePlugin()` with no extra CLI step injects the CSP meta tag into built HTML and writes `csp-headers.json` next to output. `generateCsp` defaults **true**.
   - Depends on: Area 2
   - Out of scope: Webpack/Rollup/esbuild/Nuxt parity (follow-up PRs), SSR nonces, host-specific files
@@ -147,6 +150,7 @@ interface CspPluginOptions {
 
 ### Area 4: CLI uses the same contract
 
+  - Status: **done on this line** — auto-manifest defaults to `'self'` (plus processor hashes/nonces). `'unsafe-inline'` is only present when a `--csp-policy-file` (or explicit `baseDirectives`) opts in.
   - Goal: `csp-cli dist/` remains the post-build path for non-Vite tools. Auto-manifest no longer injects `'unsafe-inline'`.
   - Depends on: Area 2
   - Out of scope: new host formats (Area 5)
@@ -160,6 +164,7 @@ interface CspPluginOptions {
 
 ### Area 5: Hosting and server adapters
 
+  - Status: **done on this line** — `@csp-plugins/adapters` emits json/netlify/cloudflare-pages/vercel/firebase/nginx/apache/caddy/express. Empty values are omitted. Merge keeps unrelated keys. CLI `--emit netlify,vercel` writes the files.
   - Goal: One declarative `CspDirectiveHeaders` object can be emitted as native config for common hosts. Least developer intervention: `--emit netlify,vercel` or auto-detect from repo files.
   - Depends on: Area 1 (header map), Area 3/4 (something actually produces the map)
   - Out of scope: every host on earth; start with the set below. No new CSP semantics.
@@ -205,7 +210,5 @@ express  → middleware (req, res, next) => { res.set(headers); next() }
 
 ## Known bugs to absorb into the stack (do not “drive-by” before this plan)
 
-  - `CommonAssetTracker` hash generation is fire-and-forget; manifests can miss hashes.
-  - `packages/unplugin/src/index.ts` default export is still the unplugin starter stub.
-  - `generateCsp` currently defaults **false** in `packages/shared/src/asset-tracker.ts`; Area 3 wants Vite default **true**. Flip the contract in one place, not only the Vite wrapper.
+  - Asset-tracker hash races and Vite HTML injection are handled in Areas 1 and 3. Webpack/Rollup/esbuild HTML parity stays later.
   - Local rewrite history is **not** a fast-forward of `origin/latest` (published vite-plugin-csp 1.1.2).

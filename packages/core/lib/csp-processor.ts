@@ -1,5 +1,5 @@
 import { CspDirectives, type CspDirectiveHeaders } from '@csp-plugins/typed-directives';
-import type { ActionSource, Sources, ValidCrypto } from '@csp-plugins/typed-directives/csp.types';
+import type { ActionSource, Sources, ValidHashes } from '@csp-plugins/typed-directives/csp.types';
 import type { DomSerializerOptions } from 'dom-serializer';
 import serialize from 'dom-serializer';
 import type { ChildNode, Document, Element } from 'domhandler';
@@ -12,11 +12,10 @@ import {
 	prepend,
 	prependChild,
 	removeElement,
-	replaceElement,
 } from 'domutils';
 import { ElementType, Parser } from 'htmlparser2';
 
-import { generateHash, generateNonce } from './crypto.ts';
+import { generateHash, generateNonce, toHashSource, type HashSource } from './crypto.ts';
 import type { ExternalResourceOptions } from './external-resource-manager.ts';
 import { ExternalResourceManager } from './external-resource-manager.ts';
 
@@ -26,6 +25,38 @@ const serializeOptions: DomSerializerOptions = {
 	selfClosingTags: true,
 	encodeEntities: false,
 };
+
+const STRICT_FETCH_DEFAULT = 'self' as const;
+
+/** Flatten an optional CSP source list, dropping empty entries. */
+function listSources<T>(base: T | T[] | undefined): T[] {
+	if (base === undefined) {
+		return [];
+	}
+	return Array.isArray(base) ? [...base] : [base];
+}
+
+/** Append sources without duplicating existing entries. */
+function appendSources<T extends string>(base: T | T[] | undefined, extra: T[]): T[] {
+	const original = listSources(base);
+	if (original.some((item) => item === 'none' || item === "'none'")) {
+		return original.filter((item) => item === 'none' || item === "'none'").slice(0, 1);
+	}
+	const merged = [...original, ...extra];
+	const seen = new Set<string>();
+	const result: T[] = [];
+	for (const item of merged) {
+		if (typeof item !== 'string' || item.length === 0) {
+			continue;
+		}
+		if (seen.has(item)) {
+			continue;
+		}
+		seen.add(item);
+		result.push(item);
+	}
+	return result;
+}
 
 export type ExternalSourceType = 'script' | 'style' | 'image' | 'font' | 'other';
 export type CryptoGenerator = (src: string, type: ExternalSourceType) => PromiseLike<string>;
@@ -90,7 +121,7 @@ export interface CSPProcessorOptions {
 	/**
 	 * Hash algorithm to use ('sha256' | 'sha384' | 'sha512')
 	 */
-	hashAlgorithm?: ValidCrypto;
+	hashAlgorithm?: ValidHashes;
 
 	/**
 	 * Custom base CSP directives to extend
@@ -139,7 +170,11 @@ export interface CSPProcessorOptions {
 			nonceGenerator?: CryptoGenerator;
 		};
 		hashing?: ExternalSourceGeneralOptions & {
-			hashGenerator?: CryptoGenerator;
+			hashGenerator?: (
+				src: string,
+				type: ExternalSourceType,
+				integrity?: string,
+			) => PromiseLike<string | string[] | undefined>;
 			/**
 			 * Enable adding the Integrity attribute to external sources
 			 * @default true
@@ -205,7 +240,7 @@ export interface CSPProcessorOptions {
 export type AnalysisNode<Inline> = {
 	nonce?: string;
 	element: ChildNode;
-	hash?: string;
+	hash?: HashSource;
 } & (Inline extends true
 	? {
 			content: string;
@@ -305,19 +340,20 @@ export class CSPProcessor {
 
 	constructor(options: CSPProcessorOptions = {}) {
 		this.options = {
-			enableNonces: true,
-			enableHashes: true,
-			nonceGenerator: generateNonce,
-			hashAlgorithm: 'sha256',
-			baseDirectives: {},
-			injectMetaTag: true,
+			...options,
+			enableNonces: options.enableNonces ?? true,
+			enableHashes: options.enableHashes ?? true,
+			nonceGenerator: options.nonceGenerator ?? generateNonce,
+			hashAlgorithm: options.hashAlgorithm ?? 'sha256',
+			baseDirectives: options.baseDirectives ?? {},
+			injectMetaTag: options.injectMetaTag ?? true,
 			metaTagOptions: {
 				replaceExisting: true,
 				attributes: {},
 				position: 'first',
 				...options.metaTagOptions,
 			},
-			generateHeaders: true,
+			generateHeaders: options.generateHeaders ?? true,
 			externalSources: {
 				noncing: {
 					scripts: false,
@@ -345,7 +381,7 @@ export class CSPProcessor {
 				},
 				resourceManager: options.externalSources?.resourceManager ?? {},
 			},
-			developmentMode: false,
+			developmentMode: options.developmentMode ?? false,
 			development: {
 				allowUnsafeEval: false,
 				allowUnsafeInline: false,
@@ -356,12 +392,23 @@ export class CSPProcessor {
 				attemptDevServerHeaders: true,
 				...options.development,
 			},
-			...options,
 		};
 
 		this.externalResourceManager = new ExternalResourceManager(
 			this.options.externalSources?.resourceManager,
 		);
+	}
+
+	private createPolicyBuilder(): CspDirectives {
+		const { CSP, ReportTo, ReportOnly, ReferrerHeader } = this.options.baseDirectives;
+		return new CspDirectives({ ...CSP }, ReportTo, ReportOnly || undefined, ReferrerHeader);
+	}
+
+	/** Export an existing enforcing policy with the configured auxiliary headers. */
+	getPreservedHeaders(policy: string): CSPResult['headers'] {
+		return this.options.generateHeaders
+			? { ...this.createPolicyBuilder().getHeaders(), 'Content-Security-Policy': policy }
+			: {};
 	}
 
 	/**
@@ -398,28 +445,57 @@ export class CSPProcessor {
 		return document;
 	}
 
+	/** Enforced policies already supplied by the HTML author. */
+	getMetaPoliciesToPreserve(
+		document: Document,
+		owner: string,
+		replaceGenerated = false,
+		beforeBase = false,
+	): string[] {
+		const head = findOne((element) => element.name === 'head', document.children, true);
+		const children = head?.children ?? this.implicitHeadElements(document);
+		const baseIndex = beforeBase
+			? children.findIndex(
+					(child) =>
+						child.type === ElementType.Tag &&
+						child.name === 'base' &&
+						child.attribs.href !== undefined,
+				)
+			: -1;
+		return this.findExistingCSPMetaTags(
+			baseIndex === -1 ? children : children.slice(0, baseIndex),
+		)
+			.filter((meta) => {
+				const generator = meta.attribs['data-csp-plugins'];
+				return (
+					generator !== owner &&
+					!(replaceGenerated && (generator === 'vite' || generator === 'cli'))
+				);
+			})
+			.map((meta) => meta.attribs.content?.replace(/[\t\n\r]+/g, ' '))
+			.filter((policy): policy is string => Boolean(policy?.trim()));
+	}
+
+	/** The first HTML base URL, if present. */
+	getDocumentBase(document: Document): string | undefined {
+		const head = findOne((element) => element.name === 'head', document.children, true);
+		for (const child of head?.children ?? this.implicitHeadElements(document)) {
+			if (
+				child.type === ElementType.Tag &&
+				child.name === 'base' &&
+				child.attribs.href !== undefined
+			) {
+				return child.attribs.href;
+			}
+		}
+		return undefined;
+	}
+
 	/**
 	 * Get the text content of an element's children
 	 */
 	private sourceTextFromElementChildren(element: Element): string {
-		return serialize(element.children, serializeOptions);
-	}
-
-	private tryPushSource<T extends AnalysisNode<false> | AnalysisNode<true>>(
-		result: Array<T>,
-		source: T,
-	): void {
-		if ('content' in source) {
-			const R = result as Array<AnalysisNode<true>>;
-			if (R.find((s) => s.content === source.content) === undefined) {
-				R.push(source);
-			}
-		} else {
-			const R = result as Array<AnalysisNode<false>>;
-			if (R.find((s) => s.src === source.src) === undefined) {
-				R.push(source);
-			}
-		}
+		return serialize(element.children, serializeOptions).replace(/\r\n?/g, '\n');
 	}
 
 	/**
@@ -453,7 +529,7 @@ export class CSPProcessor {
 				const element = ele;
 				const src = element.attribs.src;
 				if (src) {
-					this.tryPushSource(result.scriptSources, {
+					result.scriptSources.push({
 						src,
 						element,
 					} as AnalysisNode<false>);
@@ -461,7 +537,7 @@ export class CSPProcessor {
 					// Inline script
 					const content = this.sourceTextFromElementChildren(element) || '';
 					if (content.trim()) {
-						this.tryPushSource(result.inlineScripts, {
+						result.inlineScripts.push({
 							content,
 							element,
 						} as AnalysisNode<true>);
@@ -471,7 +547,7 @@ export class CSPProcessor {
 				const element = ele;
 				const src = element.attribs.src;
 				if (src) {
-					this.tryPushSource(result.styleSources, {
+					result.styleSources.push({
 						src,
 						element,
 					} as AnalysisNode<false>);
@@ -479,7 +555,7 @@ export class CSPProcessor {
 					// Inline style
 					const content = this.sourceTextFromElementChildren(element) || '';
 					if (content.trim()) {
-						this.tryPushSource(result.inlineStyles, {
+						result.inlineStyles.push({
 							content,
 							element,
 						} as AnalysisNode<true>);
@@ -487,18 +563,18 @@ export class CSPProcessor {
 				}
 			} else if (ele.type === ElementType.Tag && ele.name === 'link') {
 				const element = ele;
-				const rel = element.attribs.rel;
+				const rel = element.attribs.rel?.toLowerCase().split(/\s+/) ?? [];
 				const href = element.attribs.href;
 				if (href) {
-					if (rel === 'stylesheet') {
-						this.tryPushSource(result.styleSources, {
+					if (rel.includes('stylesheet')) {
+						result.styleSources.push({
 							src: href,
 							element,
 						} as AnalysisNode<false>);
-					} else if (rel === 'preload' || rel === 'prefetch') {
+					} else if (rel.includes('preload') || rel.includes('prefetch')) {
 						const as = element.attribs.as;
 						if (as === 'font') {
-							this.tryPushSource(result.fontSources, {
+							result.fontSources.push({
 								src: href,
 								element,
 							} as AnalysisNode<false>);
@@ -506,7 +582,7 @@ export class CSPProcessor {
 							if (result.otherSources?.[as] === undefined) {
 								result.otherSources[as] = [];
 							}
-							this.tryPushSource(result.otherSources[as], {
+							result.otherSources[as].push({
 								src: href,
 								element,
 							} as AnalysisNode<false>);
@@ -517,7 +593,7 @@ export class CSPProcessor {
 				const element = ele;
 				const src = element.attribs.src;
 				if (src) {
-					this.tryPushSource(result.imageSources, {
+					result.imageSources.push({
 						src,
 						element,
 					} as AnalysisNode<false>);
@@ -550,7 +626,7 @@ export class CSPProcessor {
 
 		// If injectMetaTag is false, remove any existing CSP meta tags
 		if (!this.options.injectMetaTag) {
-			const existingCSPMetaTags = this.findExistingCSPMetaTags(head);
+			const existingCSPMetaTags = this.findExistingCSPMetaTags(head.children);
 			existingCSPMetaTags.forEach(removeElement);
 			return;
 		}
@@ -561,15 +637,11 @@ export class CSPProcessor {
 		// Create new CSP meta tag
 		const newMetaTag = this.createCSPMetaTag(cspValue);
 		// Find existing CSP meta tags
-		const existingCSPMetaTags = this.findExistingCSPMetaTags(head);
+		const existingCSPMetaTags = this.findExistingCSPMetaTags(head.children);
 
 		// Remove existing CSP meta tags if replaceExisting is true
-		if (this.options.metaTagOptions.replaceExisting && existingCSPMetaTags.length > 0) {
-			replaceElement(existingCSPMetaTags.shift()!, newMetaTag);
-			existingCSPMetaTags.forEach(removeElement);
-		} else {
-			this.insertMetaTagAtPosition(head, newMetaTag);
-		}
+		if (this.options.metaTagOptions.replaceExisting) existingCSPMetaTags.forEach(removeElement);
+		this.insertMetaTagAtPosition(head, newMetaTag);
 	}
 
 	/**
@@ -577,24 +649,69 @@ export class CSPProcessor {
 	 */
 	private createHead(document: Document): Element {
 		const head = new DomElement('head', {});
+		for (const element of this.implicitHeadElements(document)) appendChild(head, element);
 
-		// Insert head at the beginning of the document
-		prependChild(document, head);
+		const html = findOne((element) => element.name === 'html', document.children, false);
+		if (html) {
+			prependChild(html, head);
+		} else {
+			// A leading doctype controls standards mode and must remain first.
+			const doctype = document.children.find(
+				(child) =>
+					child.type === ElementType.Directive && child.name.toLowerCase() === '!doctype',
+			);
+			if (doctype) append(doctype, head);
+			else prependChild(document, head);
+		}
 		return head;
+	}
+
+	private implicitHeadElements(document: Document): Element[] {
+		const html = findOne((element) => element.name === 'html', document.children, false);
+		const headElements = new Set([
+			'base',
+			'link',
+			'meta',
+			'title',
+			'style',
+			'script',
+			'noscript',
+			'template',
+		]);
+		const elements: Element[] = [];
+		for (const child of html?.children ?? document.children) {
+			if (
+				child.type === ElementType.Comment ||
+				child.type === ElementType.Directive ||
+				(child.type === ElementType.Text && !child.data.trim())
+			)
+				continue;
+			if (
+				(child.type === ElementType.Tag ||
+					child.type === ElementType.Style ||
+					child.type === ElementType.Script) &&
+				headElements.has(child.name)
+			) {
+				elements.push(child);
+			} else {
+				break;
+			}
+		}
+		return elements;
 	}
 
 	/**
 	 * Find existing CSP meta tags
 	 */
-	private findExistingCSPMetaTags(head: Element): Element[] {
-		return findAll((child) => {
+	private findExistingCSPMetaTags(children: ChildNode[]): Element[] {
+		return children.filter((child): child is Element => {
 			if (child.type === ElementType.Tag && child.name === 'meta') {
 				const meta = child;
 				const httpEquiv = meta.attribs['http-equiv'] || meta.attribs.httpEquiv;
 				return httpEquiv?.toLowerCase() === 'content-security-policy';
 			}
 			return false;
-		}, head.children);
+		});
 	}
 
 	/**
@@ -664,24 +781,15 @@ export class CSPProcessor {
 		};
 
 		// Build CSP directives based on analysis
-		const cspBuilder = new CspDirectives(this.options.baseDirectives.CSP);
+		const cspBuilder = this.createPolicyBuilder();
 
-		// Ensure base directives are preserved by merging them with any existing CSP directives
-		/* if (this.options.baseDirectives.CSP) {
-			cspBuilder.CSP['script-src'] = [...(cspBuilder.CSP['script-src'] ?? []), ...(this.options.baseDirectives.CSP['script-src'] ?? [])] as Sources;
-			cspBuilder.CSP['style-src'] = [...(cspBuilder.CSP['style-src'] ?? []), ...(this.options.baseDirectives.CSP['style-src'] ?? [])] as Sources;
-			cspBuilder.CSP['img-src'] = [...(cspBuilder.CSP['img-src'] ?? []), ...(this.options.baseDirectives.CSP['img-src'] ?? [])] as Sources;
-			cspBuilder.CSP['font-src'] = [...(cspBuilder.CSP['font-src'] ?? []), ...(this.options.baseDirectives.CSP['font-src'] ?? [])] as Sources;
-			cspBuilder.CSP['default-src'] = [...(cspBuilder.CSP['default-src'] ?? []), ...(this.options.baseDirectives.CSP['default-src'] ?? [])] as Sources;
-		} */
-
-		// Add script sources
+		// Add script sources. Strict default is `'self'` plus hashes/nonces.
 		const scriptSrc: ActionSource[] = [];
 		if (this.options.enableHashes) {
 			for (const script of analysis.inlineScripts) {
 				const hash = await generateHash(script.content, this.options.hashAlgorithm);
 				script.hash = hash;
-				scriptSrc.push(`${this.options.hashAlgorithm}-${hash}`);
+				scriptSrc.push(hash);
 			}
 		}
 		if (this.options.enableNonces && nonces.script !== undefined) {
@@ -697,10 +805,14 @@ export class CSPProcessor {
 			}
 			// Add external script hashes
 			if (this.shouldHashExternalSource(scriptSource.src, 'script')) {
-				const result = await this.processExternalSourceForHashing(scriptSource.src, 'script');
+				const result = await this.processExternalSourceForHashing(
+					scriptSource.src,
+					'script',
+					scriptSource.element,
+				);
 				if (result.hash !== undefined) {
 					scriptSource.hash = result.hash;
-					scriptSrc.push(`${this.options.hashAlgorithm}-${result.hash}`);
+					scriptSrc.push(...(result.hashes ?? [result.hash]));
 
 					// Add integrity attribute if enabled
 					if (this.options.externalSources.hashing?.integrity && result.hash) {
@@ -710,13 +822,13 @@ export class CSPProcessor {
 			}
 		}
 
-		// Add style sources
+		// Add style sources. Strict default is `'self'` plus hashes/nonces.
 		const styleSrc: Sources = [];
 		if (this.options.enableHashes) {
 			for (const style of analysis.inlineStyles) {
 				const hash = await generateHash(style.content, this.options.hashAlgorithm);
 				style.hash = hash;
-				styleSrc.push(`${this.options.hashAlgorithm}-${hash}`);
+				styleSrc.push(hash);
 			}
 		}
 		if (this.options.enableNonces && nonces.style !== undefined) {
@@ -732,10 +844,14 @@ export class CSPProcessor {
 			}
 			// Add external style hashes
 			if (this.shouldHashExternalSource(styleSource.src, 'style')) {
-				const result = await this.processExternalSourceForHashing(styleSource.src, 'style');
+				const result = await this.processExternalSourceForHashing(
+					styleSource.src,
+					'style',
+					styleSource.element,
+				);
 				if (result.hash !== undefined) {
 					styleSource.hash = result.hash;
-					styleSrc.push(`${this.options.hashAlgorithm}-${result.hash}`);
+					styleSrc.push(...(result.hashes ?? [result.hash]));
 
 					// Add integrity attribute if enabled
 					if (this.options.externalSources.hashing?.integrity && result.hash) {
@@ -758,7 +874,7 @@ export class CSPProcessor {
 				const result = await this.processExternalSourceForHashing(imageSource.src, 'image');
 				if (result.hash !== undefined) {
 					imageSource.hash = result.hash;
-					imgSrc.push(`${this.options.hashAlgorithm}-${result.hash}`);
+					imgSrc.push(result.hash);
 
 					// Add integrity attribute if enabled
 					if (this.options.externalSources.hashing?.integrity && result.hash) {
@@ -781,7 +897,7 @@ export class CSPProcessor {
 				const result = await this.processExternalSourceForHashing(fontSource.src, 'font');
 				if (result.hash !== undefined) {
 					fontSource.hash = result.hash;
-					fontSrc.push(`${this.options.hashAlgorithm}-${result.hash}`);
+					fontSrc.push(result.hash);
 
 					// Add integrity attribute if enabled
 					if (this.options.externalSources.hashing?.integrity && result.hash) {
@@ -801,25 +917,26 @@ export class CSPProcessor {
 		}
 
 		// Update CSP directives
-		if (scriptSrc.length > 0) {
-			const base = cspBuilder.CSP['script-src'];
-			const scriptSrcArray = Array.isArray(base) ? base : [base];
-			cspBuilder.CSP['script-src'] = [...scriptSrcArray, ...scriptSrc] as Sources;
-		}
-		if (styleSrc.length > 0) {
-			const base = cspBuilder.CSP['style-src'];
-			const styleSrcArray = Array.isArray(base) ? base : [base];
-			cspBuilder.CSP['style-src'] = [...styleSrcArray, ...styleSrc] as Sources;
-		}
+		cspBuilder.CSP['script-src'] = appendSources(
+			cspBuilder.CSP['script-src'] ?? cspBuilder.CSP['default-src'] ?? [STRICT_FETCH_DEFAULT],
+			scriptSrc,
+		);
+		cspBuilder.CSP['style-src'] = appendSources(
+			cspBuilder.CSP['style-src'] ??
+				(cspBuilder.CSP['default-src'] as Sources | undefined) ?? [STRICT_FETCH_DEFAULT],
+			styleSrc,
+		);
 		if (imgSrc.length > 0) {
-			const base = cspBuilder.CSP['img-src'];
-			const imgSrcArray = Array.isArray(base) ? base : [base];
-			cspBuilder.CSP['img-src'] = [...imgSrcArray, ...imgSrc] as Sources;
+			cspBuilder.CSP['img-src'] = appendSources(
+				cspBuilder.CSP['img-src'] as Sources | undefined,
+				imgSrc,
+			);
 		}
 		if (fontSrc.length > 0) {
-			const base = cspBuilder.CSP['font-src'];
-			const fontSrcArray = Array.isArray(base) ? base : [base];
-			cspBuilder.CSP['font-src'] = [...fontSrcArray, ...fontSrc] as Sources;
+			cspBuilder.CSP['font-src'] = appendSources(
+				cspBuilder.CSP['font-src'] as Sources | undefined,
+				fontSrc,
+			);
 		}
 
 		if (this.options.developmentMode) {
@@ -954,7 +1071,7 @@ export class CSPProcessor {
 	/**
 	 * Check if a source should be hashed based on external hashing options
 	 */
-	private shouldHashExternalSource(
+	shouldHashExternalSource(
 		source: string,
 		type: 'script' | 'style' | 'image' | 'font' | 'other',
 	): boolean {
@@ -1021,14 +1138,27 @@ export class CSPProcessor {
 	private async processExternalSourceForHashing(
 		src: string,
 		type: 'script' | 'style' | 'image' | 'font' | 'other',
-	): Promise<{ hash?: string }> {
+		element?: ChildNode,
+	): Promise<{ hash?: HashSource; hashes?: HashSource[] }> {
 		const externalHashing = this.options.externalSources?.hashing ?? {};
 
 		// Use custom hash generator if provided
 		if (externalHashing.hashGenerator) {
 			try {
-				const hash = await externalHashing.hashGenerator(src, type);
-				return { hash };
+				const integrity =
+					element &&
+					'attribs' in element &&
+					!Object.hasOwn(element.attribs, 'data-csp-plugins-integrity')
+						? element.attribs.integrity
+						: undefined;
+				const result = await externalHashing.hashGenerator(src, type, integrity);
+				if (Array.isArray(result)) {
+					const hashes = result.map((hash) => toHashSource(hash, this.options.hashAlgorithm));
+					return { hash: hashes[0], hashes };
+				}
+				return result === undefined
+					? {}
+					: { hash: toHashSource(result, this.options.hashAlgorithm) };
 			} catch {
 				return {};
 			}
@@ -1042,7 +1172,7 @@ export class CSPProcessor {
 		);
 
 		// If we have content, generate hash from it
-		if (result.content !== undefined) {
+		if (result.fetched && result.sourceType !== 'data' && result.content !== undefined) {
 			try {
 				const hash = await generateHash(result.content, this.options.hashAlgorithm);
 				return { hash };
@@ -1051,13 +1181,7 @@ export class CSPProcessor {
 			}
 		}
 
-		// Fallback: generate hash from the URL itself
-		try {
-			const hash = await generateHash(src, this.options.hashAlgorithm);
-			return { hash };
-		} catch {
-			return {};
-		}
+		return {};
 	}
 
 	/**
@@ -1066,12 +1190,7 @@ export class CSPProcessor {
 	private isLocalResource(source: string): boolean {
 		// Simple check for local resources
 		// This could be enhanced with more sophisticated local resource detection
-		return (
-			source.startsWith('/') ||
-			source.startsWith('./') ||
-			source.startsWith('../') ||
-			!source.includes('://')
-		);
+		return !source.startsWith('//') && !/^[a-z][a-z\d+.-]*:/i.test(source);
 	}
 
 	/**
@@ -1091,7 +1210,13 @@ export class CSPProcessor {
 				tagElement.name === 'img' ||
 				tagElement.name === 'link'
 			) {
-				tagElement.attribs.integrity = `${this.options.hashAlgorithm}-${hash}`;
+				if (
+					!tagElement.attribs.integrity ||
+					Object.hasOwn(tagElement.attribs, 'data-csp-plugins-integrity')
+				) {
+					tagElement.attribs.integrity = toHashSource(hash, this.options.hashAlgorithm);
+					tagElement.attribs['data-csp-plugins-integrity'] = '';
+				}
 			}
 		}
 	}

@@ -85,6 +85,12 @@ describe('cSP Browser Validation', () => {
 
 		const indexHtml = join(distDir, 'index.html');
 		expect(existsSync(indexHtml)).toBe(true);
+
+		const { readFileSync } = await import('node:fs');
+		const html = readFileSync(indexHtml, 'utf8');
+		expect(html).toMatch(/<meta[^>]*http-equiv="Content-Security-Policy"/);
+		expect(html).not.toContain("'unsafe-inline'");
+		expect(existsSync(join(distDir, 'csp-headers.json'))).toBe(true);
 	}, 60000);
 
 	it('should serve built app and validate CSP policy', async () => {
@@ -157,14 +163,8 @@ describe('cSP Browser Validation', () => {
 			expect(result.success).toBe(true);
 			expect(result.cspViolations).toHaveLength(0);
 			expect(result.securityPolicyViolations).toHaveLength(0);
-
-			// TODO: CSP plugin currently only generates manifests, not HTML transformations
-			// For now, we'll check that the test app builds successfully
-			// In the future, this should validate actual CSP policies in the HTML
-			console.log(
-				'Note: CSP plugin currently only generates manifests, not HTML transformations',
-			);
-			console.log('This test will be updated when HTML transformation is implemented');
+			expect(result.cspPolicy).toMatch(/'self'/);
+			expect(result.cspPolicy).not.toContain("'unsafe-inline'");
 		} finally {
 			server.close();
 		}
@@ -224,7 +224,7 @@ describe('cSP Browser Validation', () => {
 			await page.goto(baseUrl, { waitUntil: 'networkidle2' });
 
 			// Wait for any CSP violations to be captured
-			await page.waitForTimeout(2000);
+			await new Promise((resolve) => setTimeout(resolve, 2000));
 
 			// Check for CSP policy in meta tag
 			const cspPolicy = await page.evaluate(() => {
@@ -232,11 +232,8 @@ describe('cSP Browser Validation', () => {
 				return metaTag?.getAttribute('content');
 			});
 
-			// TODO: CSP plugin currently only generates manifests, not HTML transformations
-			console.log(
-				'Note: CSP plugin currently only generates manifests, not HTML transformations',
-			);
-			console.log('This test will be updated when HTML transformation is implemented');
+			expect(cspPolicy).toMatch(/'self'/);
+			expect(cspPolicy).not.toContain("'unsafe-inline'");
 
 			// Get any security policy violations
 			const violations = await page.evaluate(() => {
