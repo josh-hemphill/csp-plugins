@@ -259,6 +259,7 @@ export function writeStructuredConfig(
 					/^content-security-policy(?:-report-only)?$/i.test(entry.key),
 			);
 			if (
+				nextRules.size > 0 &&
 				conflicting &&
 				(!routed ||
 					typeof group.source !== 'string' ||
@@ -323,7 +324,7 @@ export function writeStructuredConfig(
 			kept = mergePathGroups(kept, source, effective, true);
 			written.set(source, effective);
 		}
-		return { ...record, headers: kept };
+		return { ...record, headers: kept.length === 0 && nextRules.size === 0 ? undefined : kept };
 	};
 	if (id === 'vercel')
 		return { body: prettyJson(prepare(parsed)), rules: Object.fromEntries(written) };

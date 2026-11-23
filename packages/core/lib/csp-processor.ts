@@ -450,9 +450,21 @@ export class CSPProcessor {
 		document: Document,
 		owner: string,
 		replaceGenerated = false,
+		beforeBase = false,
 	): string[] {
 		const head = findOne((element) => element.name === 'head', document.children, true);
-		return this.findExistingCSPMetaTags(head?.children ?? this.implicitHeadElements(document))
+		const children = head?.children ?? this.implicitHeadElements(document);
+		const baseIndex = beforeBase
+			? children.findIndex(
+					(child) =>
+						child.type === ElementType.Tag &&
+						child.name === 'base' &&
+						child.attribs.href !== undefined,
+				)
+			: -1;
+		return this.findExistingCSPMetaTags(
+			baseIndex === -1 ? children : children.slice(0, baseIndex),
+		)
 			.filter((meta) => {
 				const generator = meta.attribs['data-csp-plugins'];
 				return (

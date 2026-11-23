@@ -479,7 +479,15 @@ it('validates aliases from a copied structured config on the first and subsequen
 	await writeFile(join(input, 'docs', 'post.html'), page('post'));
 	await writeFile(
 		join(input, 'vercel.json'),
-		JSON.stringify({ cleanUrls: true, trailingSlash: true, outputDirectory: '.' }),
+		JSON.stringify({
+			cleanUrls: true,
+			trailingSlash: true,
+			outputDirectory: '.',
+			rewrites: [
+				{ source: '/docs/:id', destination: '/docs/post.html' },
+				{ source: '/:id', destination: '/index.html' },
+			],
+		}),
 	);
 	const run = () =>
 		spawnSync(
@@ -506,6 +514,14 @@ it('validates aliases from a copied structured config on the first and subsequen
 		expect(config.headers.map((rule: { source: string }) => rule.source)).toContain(
 			'/docs/post/',
 		);
+		const changed = JSON.parse(await readFile(join(input, 'vercel.json'), 'utf8'));
+		changed.rewrites.reverse();
+		await writeFile(join(input, 'vercel.json'), JSON.stringify(changed));
+		expect(run().stderr).toContain('contain different configuration');
+		changed.rewrites.pop();
+		await writeFile(join(input, 'vercel.json'), JSON.stringify(changed));
+		expect(run().stderr).toContain('contain different configuration');
+		expect(JSON.parse(await readFile(join(root, 'out', 'vercel.json'), 'utf8'))).toEqual(config);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
@@ -530,6 +546,40 @@ it('rejects a whitespace-prefixed network base when base-uri self depends on dep
 		expect(result.status).toBe(1);
 		expect(result.stderr).toContain('deployment origin');
 		expect(await readFile(join(input, 'index.html'), 'utf8')).toBe(html);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('uses an authored base for Vercel aliases and verifies existing SRI without rewriting the page', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-authored-alias-'));
+	const dist = join(root, 'dist');
+	await mkdir(join(dist, 'docs'), { recursive: true });
+	const input = join(dist, 'docs', 'index.html');
+	const content = 'console.log("docs")';
+	const original = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="base-uri 'self'; script-src 'self'"><base href="/docs/"></head><body><script src="./app.js" integrity="${hash(content)}"></script></body></html>`;
+	const run = () =>
+		spawnSync(process.execPath, [cli, 'dist', '--emit', 'vercel', '--local-script-integrity'], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+	try {
+		await writeFile(input, original);
+		await writeFile(join(dist, 'index.html'), '<!doctype html><title>Home</title><p>Home</p>');
+		await writeFile(join(dist, 'docs', 'app.js'), content);
+		expect(run().status).toBe(0);
+		const config = await readFile(join(root, 'vercel.json'), 'utf8');
+		expect(JSON.parse(config).headers.map((rule: { source: string }) => rule.source)).toEqual(
+			expect.arrayContaining(['/docs', '/docs/']),
+		);
+		expect(await readFile(input, 'utf8')).toBe(original);
+
+		await writeFile(join(dist, 'docs', 'app.js'), 'console.log("changed")');
+		const stale = run();
+		expect(stale.status).toBe(1);
+		expect(stale.stderr).toContain('Cannot verify integrity');
+		expect(await readFile(input, 'utf8')).toBe(original);
+		expect(await readFile(join(root, 'vercel.json'), 'utf8')).toBe(config);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

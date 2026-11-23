@@ -26,6 +26,7 @@ import {
 	type StaticHeaderArtifact,
 	type StaticRoutingOptions,
 	type StructuredHeaderOwnership,
+	unmanagedStructuredConfiguration,
 } from '@csp-plugins/adapters';
 import { SimpleFilesystemCache } from '@csp-plugins/basic-fscache';
 import type { CSPProcessorOptions } from '@csp-plugins/core';
@@ -39,10 +40,20 @@ import log from 'loglevel';
 
 const BASE_METADATA = '.csp-headers-base.json';
 
+type ProjectOwnership = Partial<Record<string, StructuredHeaderOwnership | StaticHeaderArtifact>>;
+
 function containsConfig(actual: unknown, original: unknown): boolean {
 	if (actual === original) return true;
 	if (Array.isArray(actual) && Array.isArray(original)) {
-		return original.every((item) => actual.some((current) => containsConfig(current, item)));
+		let offset = 0;
+		for (const item of original) {
+			const index = actual.findIndex(
+				(current, index) => index >= offset && containsConfig(current, item),
+			);
+			if (index < 0) return false;
+			offset = index + 1;
+		}
+		return true;
 	}
 	if (
 		actual &&
@@ -300,7 +311,8 @@ export class CliProcessor {
 		const root = await realpath(inputDir);
 		await this.collectFiles(inputDir, outputDir, files, root, new Set());
 		const base = await this.resolvePublicBase(files);
-		const configurations = await this.readAdapterConfigurations(files);
+		const { path: ownershipPath, previous } = await this.readProjectOwnership();
+		const configurations = await this.readAdapterConfigurations(files, previous);
 		const routing = this.getRoutingOptions(configurations);
 		if (inputDir !== outputDir) {
 			await this.checkPublishDirectory(outputDir, files);
@@ -320,7 +332,7 @@ export class CliProcessor {
 			}
 		}
 		const artifacts = collectHeaders
-			? await this.planHeaderOutputs(files, base, configurations)
+			? await this.planHeaderOutputs(files, base, configurations, ownershipPath, previous)
 			: new Map<string, string>();
 		for (const path of artifacts.keys()) {
 			if (
@@ -502,8 +514,19 @@ export class CliProcessor {
 		}
 	}
 
+	private async readProjectOwnership(): Promise<{ path: string; previous: ProjectOwnership }> {
+		const { emit = [], projectDir, outputDir } = this.options;
+		const path = join(projectDir ?? outputDir, '.csp-headers-state.json');
+		const previous =
+			emit.some((id) => id === 'vercel' || id === 'firebase') && existsSync(path)
+				? (JSON.parse(await readFile(path, 'utf8')) as ProjectOwnership)
+				: {};
+		return { path, previous };
+	}
+
 	private async readAdapterConfigurations(
 		files: ReadonlyMap<string, string>,
+		previous: ProjectOwnership,
 	): Promise<Map<AdapterId, { dest: string; body: string }>> {
 		const { emit = [], outputDir, projectDir = outputDir } = this.options;
 		const configurations = new Map<AdapterId, { dest: string; body: string }>();
@@ -517,12 +540,27 @@ export class CliProcessor {
 			if (fromInput.trim() && onDisk.trim()) {
 				let compatible: boolean;
 				try {
-					compatible = structured
-						? containsConfig(JSON.parse(onDisk), JSON.parse(fromInput))
-						: onDisk
-								.replace(/\r\n/g, '\n')
-								.trim()
-								.startsWith(fromInput.replace(/\r\n/g, '\n').trim());
+					if (id === 'vercel' || id === 'firebase') {
+						const publicDir = relative(projectDir, outputDir).split(sep).join('/') || '.';
+						const key = id === 'firebase' ? `firebase:${publicDir}` : id;
+						const diskConfig = unmanagedStructuredConfiguration(
+							id,
+							onDisk,
+							{ publicDir },
+							previous[key] ?? previous[id],
+						);
+						const inputConfig = unmanagedStructuredConfiguration(id, fromInput, {
+							publicDir,
+						});
+						compatible =
+							containsConfig(diskConfig, inputConfig) &&
+							containsConfig(inputConfig, diskConfig);
+					} else {
+						compatible = onDisk
+							.replace(/\r\n/g, '\n')
+							.trim()
+							.startsWith(fromInput.replace(/\r\n/g, '\n').trim());
+					}
 				} catch (error) {
 					throw new Error(`Cannot generate ${id} headers in ${dest}: ${String(error)}`);
 				}
@@ -620,6 +658,8 @@ export class CliProcessor {
 		files: ReadonlyMap<string, string>,
 		base: string,
 		configurations: ReadonlyMap<AdapterId, { dest: string; body: string }>,
+		statePath: string,
+		previous: ProjectOwnership,
 	): Promise<Map<string, string>> {
 		const { emit = [], generateHeaders, headersOutput, outputDir, projectDir } = this.options;
 		const standard = staticHeaders(this.pageHeaders);
@@ -635,14 +675,7 @@ export class CliProcessor {
 				);
 			return writes;
 		}
-		const statePath = join(projectDir ?? outputDir, '.csp-headers-state.json');
 		const remember = emit.some((id) => id === 'vercel' || id === 'firebase');
-		const previous =
-			remember && existsSync(statePath)
-				? (JSON.parse(await readFile(statePath, 'utf8')) as Partial<
-						Record<string, StructuredHeaderOwnership | StaticHeaderArtifact>
-					>)
-				: {};
 		const next = { ...previous };
 		if (headersOutput && (generateHeaders !== false || emit.includes('json'))) {
 			const generatedInput =

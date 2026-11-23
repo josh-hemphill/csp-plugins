@@ -204,6 +204,25 @@ export function mergeStructuredStaticHeaders(
 	};
 }
 
+/** Compare project configuration without rules owned by this generator. */
+export function unmanagedStructuredConfiguration(
+	id: 'vercel' | 'firebase',
+	existing: string,
+	options: Omit<HeaderAdapterOptions, 'pathPrefix'>,
+	ownership?: StructuredHeaderOwnership | StaticHeaderArtifact,
+): unknown {
+	const known =
+		ownership &&
+		'rules' in ownership &&
+		(id !== 'firebase' ||
+			(ownership.publicDir === options.publicDir &&
+				ownership.firebaseTarget === options.firebaseTarget));
+	const previous = new Map(Object.entries(known ? ownership.rules : {}));
+	return JSON.parse(
+		writeStructuredConfig(id, existing, previous, new Map(), true, options).body,
+	) as unknown;
+}
+
 const routeStart = '# csp-plugins headers begin';
 const routeEnd = '# csp-plugins headers end';
 

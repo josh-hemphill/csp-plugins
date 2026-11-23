@@ -23,7 +23,7 @@ node /path/to/csp-plugins/packages/cli/dist/cli.mjs dist --no-html --emit vercel
 | `--project-dir <directory>` | Directory for Vercel or Firebase project config and generated rule state. Defaults to the current working directory. |
 | `--headers-output <file>` | Override the JSON destination. Defaults to `csp-headers.json` in the publish directory. |
 | `--no-html` | Analyze HTML and emit headers without rewriting it. Use this for an existing baked policy or inline hashes. |
-| `--replace-existing` | Replace an authored or Vite-generated CSP meta tag. By default the CLI preserves and exports those policies. A policy file can replace generated metadata, and replacing an authored policy requires this flag. |
+| `--replace-existing` | Replace an authored or Vite-generated CSP meta tag. By default the CLI preserves and exports those policies. A policy file can replace generated metadata, and replacing an authored policy or adding SRI to its markup requires this flag. |
 | `--no-headers` | Skip default JSON generation. Explicit `--emit` choices still apply. |
 | `--local-script-integrity` | Add SRI to resolvable same-site external scripts. Local stylesheet SRI is enabled by default. Hashes use the original file bytes. |
 | `--manifests-dir <directory>` | Directory to load plugin options from. Defaults to `.csp-manifest`. Only manifests for the selected input directory can supply policy options. |
