@@ -12,7 +12,6 @@ import {
 	prepend,
 	prependChild,
 	removeElement,
-	replaceElement,
 } from 'domutils';
 import { ElementType, Parser } from 'htmlparser2';
 
@@ -617,12 +616,8 @@ export class CSPProcessor {
 		const existingCSPMetaTags = this.findExistingCSPMetaTags(head.children);
 
 		// Remove existing CSP meta tags if replaceExisting is true
-		if (this.options.metaTagOptions.replaceExisting && existingCSPMetaTags.length > 0) {
-			replaceElement(existingCSPMetaTags.shift()!, newMetaTag);
-			existingCSPMetaTags.forEach(removeElement);
-		} else {
-			this.insertMetaTagAtPosition(head, newMetaTag);
-		}
+		if (this.options.metaTagOptions.replaceExisting) existingCSPMetaTags.forEach(removeElement);
+		this.insertMetaTagAtPosition(head, newMetaTag);
 	}
 
 	/**

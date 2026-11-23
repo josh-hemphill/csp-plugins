@@ -20,6 +20,7 @@ import {
 	mergeStaticHeaders,
 	mergeStructuredStaticHeaders,
 	parseAdapterIds,
+	readStructuredRouting,
 	type AdapterId,
 	type StaticHeaderArtifact,
 	type StructuredHeaderOwnership,
@@ -276,6 +277,7 @@ export class CliProcessor {
 		const root = await realpath(inputDir);
 		await this.collectFiles(inputDir, outputDir, files, root, new Set());
 		const base = await this.resolvePublicBase(files);
+		const directoryAliasesWithoutSlash = await this.usesDirectoryAliasesWithoutSlash();
 		if (inputDir !== outputDir) {
 			await this.checkPublishDirectory(outputDir, files);
 		}
@@ -288,6 +290,7 @@ export class CliProcessor {
 					base,
 					processHTML !== false,
 					collectHeaders,
+					directoryAliasesWithoutSlash,
 				);
 				if (html !== undefined) pages.set(dest, html);
 			}
@@ -382,19 +385,31 @@ export class CliProcessor {
 	}
 
 	private async resolvePublicBase(files: ReadonlyMap<string, string>): Promise<string> {
-		const saved = join(this.options.inputDir, BASE_METADATA);
 		let explicit = this.options.base ?? this.manifest?.publicBase;
-		if (explicit === undefined && existsSync(saved)) {
-			const metadata: unknown = JSON.parse(await readFile(saved, 'utf8'));
-			if (
-				!metadata ||
-				typeof metadata !== 'object' ||
-				!('base' in metadata) ||
-				typeof metadata.base !== 'string'
-			) {
-				throw new Error(`Invalid deployment base metadata in ${saved}. Set --base explicitly.`);
+		if (explicit === undefined) {
+			const directories = new Set([this.options.inputDir, this.options.outputDir]);
+			const bases = new Set<string>();
+			for (const directory of directories) {
+				const saved = join(directory, BASE_METADATA);
+				if (!existsSync(saved)) continue;
+				const metadata: unknown = JSON.parse(await readFile(saved, 'utf8'));
+				if (
+					!metadata ||
+					typeof metadata !== 'object' ||
+					!('base' in metadata) ||
+					typeof metadata.base !== 'string'
+				) {
+					throw new Error(
+						`Invalid deployment base metadata in ${saved}. Set --base explicitly.`,
+					);
+				}
+				bases.add(metadata.base);
 			}
-			explicit = metadata.base;
+			if (bases.size > 1)
+				throw new Error(
+					'Input and publish directories have different deployment bases. Set --base explicitly.',
+				);
+			explicit = bases.values().next().value;
 		}
 		if (explicit !== undefined) {
 			if (!explicit.startsWith('/') || explicit.startsWith('//') || /[?#\\]/.test(explicit)) {
@@ -432,12 +447,7 @@ export class CliProcessor {
 				(left, right) => right.count - left.count || left.prefix.length - right.prefix.length,
 			);
 		const best = matches[0];
-		if (
-			best &&
-			matches.every(({ count, prefix }) => count < best.count || prefix.startsWith(best.prefix))
-		) {
-			return best.prefix;
-		}
+		if (best && matches[1]?.count !== best.count) return best.prefix;
 		throw new Error(
 			'Could not infer a deployment base from the existing CSP route map. Set --base explicitly.',
 		);
@@ -468,11 +478,33 @@ export class CliProcessor {
 		}
 	}
 
+	private async usesDirectoryAliasesWithoutSlash(): Promise<boolean> {
+		const { emit = [], outputDir, projectDir = outputDir } = this.options;
+		for (const id of emit) {
+			if (id !== 'vercel' && id !== 'firebase') continue;
+			const path = join(projectDir, getAdapter(id).fileName);
+			if (!existsSync(path)) continue;
+			const config = await readFile(path, 'utf8');
+			try {
+				if (
+					readStructuredRouting(id, config, {
+						publicDir: relative(projectDir, outputDir).split(sep).join('/') || '.',
+					}).trailingSlash === false
+				)
+					return true;
+			} catch (error) {
+				throw new Error(`Cannot generate ${id} headers in ${path}: ${String(error)}`);
+			}
+		}
+		return false;
+	}
+
 	private async processHTMLFile(
 		source: string,
 		base: string,
 		writeHtml: boolean,
 		collectHeaders: boolean,
+		directoryAliasesWithoutSlash: boolean,
 	): Promise<string | undefined> {
 		const inputDir = this.options.inputDir;
 		const sourceRoot = await realpath(inputDir);
@@ -512,8 +544,11 @@ export class CliProcessor {
 					throw error;
 				}
 			},
-			'cli',
-			Boolean(this.options.cspPolicyFile),
+			{
+				owner: 'cli',
+				rejectPreservedPolicy: Boolean(this.options.cspPolicyFile),
+				directoryAliasesWithoutSlash,
+			},
 		);
 		if (collectHeaders && 'Content-Security-Policy' in result.headers)
 			this.pageHeaders.set(path, result.headers);

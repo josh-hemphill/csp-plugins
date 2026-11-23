@@ -34,9 +34,13 @@ export async function processStaticHtml(
 	pagePath: string,
 	options: CSPProcessorOptions,
 	readAsset: (path: string) => Promise<string | Uint8Array | undefined>,
-	owner: 'vite' | 'cli',
-	rejectPreservedPolicy = false,
+	context: {
+		owner: 'vite' | 'cli';
+		rejectPreservedPolicy?: boolean;
+		directoryAliasesWithoutSlash?: boolean;
+	},
 ): Promise<CSPResult> {
+	const { owner, rejectPreservedPolicy, directoryAliasesWithoutSlash } = context;
 	const hashing = options.externalSources?.hashing;
 	const pageUrl = new URL(pagePath, STATIC_ORIGIN);
 	let assetBase = pageUrl;
@@ -127,43 +131,6 @@ export async function processStaticHtml(
 		},
 	});
 	const document = processor.parseHTML(html);
-	const base = processor.getDocumentBase(document);
-	if (base !== undefined) {
-		let candidate: URL | undefined;
-		try {
-			candidate = new URL(base, pageUrl);
-		} catch {
-			// Browsers fall back to the document URL if the base cannot be parsed.
-		}
-		if (candidate && ['http:', 'https:'].includes(candidate.protocol)) {
-			const directive = options.baseDirectives?.CSP?.['base-uri'];
-			const sources = (Array.isArray(directive) ? directive : [directive])
-				.filter((source): source is NonNullable<typeof source> => source !== undefined)
-				.map((source) => source.replace(/^'|'$/g, ''));
-			const matches =
-				sources.length === 0 ||
-				sources.some(
-					(source) =>
-						source === '*' ||
-						(source === 'self' && candidate.origin === pageUrl.origin) ||
-						source === candidate.protocol ||
-						source === candidate.origin,
-				);
-			if (matches) {
-				assetBase = candidate;
-			} else if (
-				sources.some(
-					(source) =>
-						!['none', 'self', 'http:', 'https:'].includes(source) &&
-						!/^https?:\/\/[^/*]+$/.test(source),
-				)
-			) {
-				throw new Error(
-					`Cannot resolve the HTML base URL safely with the configured base-uri for ${pagePath}`,
-				);
-			}
-		}
-	}
 	const authored = processor.getMetaPoliciesToPreserve(
 		document,
 		options.injectMetaTag === false ? '' : owner,
@@ -175,8 +142,63 @@ export async function processStaticHtml(
 			`An existing CSP meta policy conflicts with configured policy options for ${pagePath}. Explicitly replace the existing policy or omit the additional policy.`,
 		);
 	}
+	const base = processor.getDocumentBase(document);
+	const directoryAlias =
+		directoryAliasesWithoutSlash && pagePath.endsWith('/index.html')
+			? pagePath.slice(0, -'/index.html'.length)
+			: '';
+	const alternatePage = directoryAlias ? new URL(directoryAlias, STATIC_ORIGIN) : undefined;
+	let alternateAssetBase = alternatePage;
+	if (base !== undefined) {
+		let candidate: URL | undefined;
+		try {
+			candidate = new URL(base, pageUrl);
+		} catch {
+			// Browsers fall back to the document URL if the base cannot be parsed.
+		}
+		if (candidate && ['http:', 'https:'].includes(candidate.protocol)) {
+			const directive = options.baseDirectives?.CSP?.['base-uri'];
+			const position = options.metaTagOptions?.position;
+			if (
+				directive !== undefined &&
+				!preserve &&
+				options.injectMetaTag !== false &&
+				position !== undefined &&
+				position !== 'first'
+			) {
+				throw new Error(
+					`The CSP meta tag must precede the HTML base element in ${pagePath}. Use the first position with base-uri.`,
+				);
+			}
+			const sources = (Array.isArray(directive) ? directive : [directive])
+				.filter((source): source is NonNullable<typeof source> => source !== undefined)
+				.map((source) => source.replace(/^'|'$/g, ''));
+			const relativeBase = !/^([a-z][a-z+.-]*:|\/\/)/i.test(base);
+			const definitelyAllowed =
+				sources.length === 0 ||
+				sources.includes('*') ||
+				(relativeBase && sources.includes('self'));
+			if (definitelyAllowed) {
+				assetBase = candidate;
+				if (alternatePage) alternateAssetBase = new URL(base, alternatePage);
+			} else if (sources.some((source) => source !== 'none')) {
+				throw new Error(
+					`Cannot resolve the HTML base URL for ${pagePath} without knowing the deployment origin. Use a relative base with base-uri 'self', remove the base element, or use base-uri 'none'.`,
+				);
+			}
+		}
+	}
 	const result = await processor.processDOM(document);
 	if (readFailure) throw readFailure;
+	if (alternateAssetBase) {
+		for (const { src } of [...result.analysis.scriptSources, ...result.analysis.styleSources]) {
+			if (new URL(src, assetBase).href !== new URL(src, alternateAssetBase).href) {
+				throw new Error(
+					`Relative asset ${src} resolves differently at ${directoryAlias} and ${pagePath}. Use a root-relative URL or keep the trailing slash.`,
+				);
+			}
+		}
+	}
 	if (preserve) {
 		result.html = html;
 		if ('Content-Security-Policy' in result.headers) {

@@ -372,3 +372,83 @@ it('ignores a base element blocked by base-uri when hashing a local file', async
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+it('retains the destination mount on a separate-output replay and emits single-page snippets', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-publish-mount-'));
+	const input = join(root, 'dist');
+	await mkdir(input);
+	await writeFile(join(input, 'index.html'), page('mounted'));
+	const run = (...args: string[]) =>
+		spawnSync(
+			process.execPath,
+			[
+				cli,
+				'dist',
+				'--output-dir',
+				'publish',
+				'--emit',
+				'netlify,nginx,apache,caddy,express',
+				...args,
+			],
+			{
+				cwd: root,
+				encoding: 'utf8',
+			},
+		);
+	try {
+		expect(run('--base', '/site/').status).toBe(0);
+		expect(run().status).toBe(0);
+		const output = join(root, 'publish');
+		expect(await readFile(join(output, '_headers'), 'utf8')).toMatch(/^\/site\/$/m);
+		for (const file of [
+			'csp-headers.nginx.conf',
+			'csp-headers.apache.conf',
+			'Caddyfile.csp',
+			'csp-headers.middleware.mjs',
+		]) {
+			expect(await readFile(join(output, file), 'utf8')).toContain('Content-Security-Policy');
+		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('rejects origin-dependent bases and aliases without a trailing slash with unstable local URLs before writing', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-ambiguous-assets-'));
+	const dist = join(root, 'dist');
+	await mkdir(join(dist, 'docs'), { recursive: true });
+	const input = join(dist, 'docs', 'index.html');
+	const original = page('docs');
+	const run = (...args: string[]) =>
+		spawnSync(process.execPath, [cli, 'dist', '--local-script-integrity', ...args], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+	try {
+		const withBase = original.replace('<head>', '<head><base href="/docs/">');
+		await writeFile(input, withBase);
+		await writeFile(
+			join(root, 'policy.json'),
+			JSON.stringify({ 'base-uri': ['https://example.org'] }),
+		);
+		const origin = run('--csp-policy-file', 'policy.json');
+		expect(origin.status).toBe(1);
+		expect(origin.stderr).toContain('deployment origin');
+		expect(await readFile(input, 'utf8')).toBe(withBase);
+
+		await writeFile(input, original);
+		await writeFile(
+			join(root, 'vercel.json'),
+			JSON.stringify({ cleanUrls: true, trailingSlash: false }),
+		);
+		const aliasResult = run('--emit', 'vercel');
+		expect(aliasResult.status).toBe(1);
+		expect(aliasResult.stderr).toContain('resolves differently');
+		expect(await readFile(input, 'utf8')).toBe(original);
+
+		await writeFile(input, original.replaceAll('./app.', '/docs/app.'));
+		expect(run('--emit', 'vercel').status).toBe(0);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

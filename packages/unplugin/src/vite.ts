@@ -109,8 +109,12 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 								if (bytes !== undefined && name !== undefined) expected.set(name, bytes);
 								return bytes;
 							},
-							'vite',
-							Object.keys(settings.cspProcessorOptions.baseDirectives?.CSP ?? {}).length > 0,
+							{
+								owner: 'vite',
+								rejectPreservedPolicy:
+									Object.keys(settings.cspProcessorOptions.baseDirectives?.CSP ?? {})
+										.length > 0,
+							},
 						);
 						file.source = result.html ?? html;
 						expected.set(file.fileName, file.source);

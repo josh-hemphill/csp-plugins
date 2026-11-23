@@ -44,7 +44,7 @@ pnpm docs:api
 | `@csp-plugins/basic-fscache` | Optional filesystem cache for fetched externals |
 | `@csp-plugins/adapters` | Emit `CspDirectiveHeaders` as Netlify/Vercel/nginx/… config (`build:all`; unit-tested) |
 | `@csp-plugins/cli` | Post-build HTML + `csp-headers.json` (`build:all`, not default `test`) |
-| `@csp-plugins/unplugin` | Vite / Webpack / Rollup / esbuild / Nuxt plugins (`build:all`; Vite HTML + headers covered by `pnpm test`) |
+| `@csp-plugins/unplugin` | Vite HTML processing, Webpack / Rollup / esbuild asset tracking, and an experimental Nuxt hook |
 
 ## Architecture
 

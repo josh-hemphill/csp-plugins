@@ -38,7 +38,8 @@ const { body, ownership } = mergeStructuredStaticHeaders(
   'vercel', existingConfig, headerArtifact, { publicDir: 'dist' }, previousOwnership,
 );
 ```
- See the [CLI guide](../cli/README.md#hosting).
+
+See the [CLI guide](../cli/README.md#hosting).
 
 The nginx, Apache, Caddy, and Express adapters emit a single-policy snippet.
 Import the Express module and register its middleware before serving static

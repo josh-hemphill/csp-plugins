@@ -26,7 +26,7 @@ import {
 export type { AdapterId, HeaderAdapter, HeaderAdapterOptions } from './types.ts';
 export { adapterIds, cspHeaderNames, isAdapterId } from './types.ts';
 export { presentHeaders } from './headers.ts';
-export { stringifyAdapterOutput } from './merge.ts';
+export { readStructuredRouting, stringifyAdapterOutput } from './merge.ts';
 
 const adapters: Record<AdapterId, HeaderAdapter> = {
 	json: {
@@ -241,11 +241,13 @@ export function mergeStaticHeaders(
 	}
 	const routed = 'routes' in headers;
 	if (id === 'nginx' || id === 'apache' || id === 'caddy' || id === 'express') {
-		if (routed)
+		const policies = routed ? Object.values(headers.routes) : [headers];
+		if (policies.length !== 1) {
 			throw new Error(
 				`${id} emits a single-policy snippet. Use the JSON route map to attach each policy to its route.`,
 			);
-		return adapter.merge(existing, headers);
+		}
+		return adapter.merge(existing, policies[0]);
 	}
 	if (id === 'vercel' || id === 'firebase') {
 		return mergeStructuredStaticHeaders(id, existing, headers, options, previous).body;

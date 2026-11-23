@@ -31,12 +31,18 @@ node /path/to/csp-plugins/packages/cli/dist/cli.mjs dist --no-html --emit vercel
 | `--csp-policy-file <file>` | Custom base policy JSON. Use the processor's `baseDirectives` shape, such as `{"CSP":{"img-src":["self","data:"]}}`. |
 | `--log-level <level>` | Set verbosity. Use `--help` for cache maintenance flags and additional details. |
 
-With a single HTML page, the JSON file is a flat header map. Multi-page sites
-receive a `routes` object keyed by the emitted HTML paths. Meta tags remain
+A one-page site deployed at `/` receives a flat JSON header map. Multi-page and
+mounted sites receive a `routes` object keyed by the emitted HTML paths. Meta tags remain
 page-specific in either mode. Browser requests that reach the same HTML via
 custom rewrites or clean URLs need a corresponding deployment header rule.
 Local integrity is derived from files under the static directory. When integrity checking is enabled, at least one of the strongest supplied SRI pins must match the file bytes. Remote asset
-integrity should be specified explicitly in your markup.
+integrity should be specified explicitly in your markup. For HTML using a
+`<base>` element, the CLI resolves a relative base under `base-uri 'self'`
+and ignores it under `base-uri 'none'`. It reports a conflict if the
+effective base would depend on a deployment origin it cannot know. A generated
+CSP meta tag must precede the base element when it sets `base-uri`. For
+directory URLs without a trailing slash, use root-relative script and stylesheet paths so
+the same HTML works at the file URL and its shorter alias.
 
 ## Hosting
 
@@ -54,7 +60,8 @@ remove stale generated rules while preserving unrelated existing settings.
 Keep this file alongside the project config between runs. The CLI owns the CSP
 fields in its JSON output and preserves other response headers in that file.
 The generated `.csp-headers-base.json` beside the pages keeps their deployment
-base stable across page additions and removals. For Netlify and
+base stable across page additions and removals. Keep it in the publish
+directory when rerunning with a separate output directory. For Netlify and
 Cloudflare Pages, generated rules live in a marked block in `_headers`.
 
 The CLI uses inline hashes for static pages. Existing user configuration can

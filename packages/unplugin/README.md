@@ -60,6 +60,7 @@ Vite project also copies separate HTML pages from `public`.
 
 Use the plugin for your build tool. The named exports from the package root
 are the same factories as the default exports from their individual entry points.
+Use these factories in place of the workspace baseline's default starter object.
 
 ```ts
 import { esbuild, rollup, webpack } from '@csp-plugins/unplugin';
