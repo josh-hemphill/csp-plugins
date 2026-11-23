@@ -1,6 +1,6 @@
 {
 	"name": "@csp-plugins/monorepo",
-	"version": "1.0.0",
+	"version": "2.0.0",
 	"private": true,
 	"description": "A collection of plugins and packages with shared functionality for creating and managing CSP tags, headers, and directives",
 	"keywords": [
