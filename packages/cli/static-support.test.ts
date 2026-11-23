@@ -115,3 +115,84 @@ it('validates malformed host configuration before rewriting HTML or creating out
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+it('keeps authored policies, unrelated JSON headers, and the configured output on rerun', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-owned-output-'));
+	const dist = join(root, 'dist');
+	await mkdir(dist);
+	const authored = page('authored').replace(
+		'<head>',
+		`<head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'">`,
+	);
+	const run = (...args: string[]) =>
+		spawnSync(process.execPath, [cli, 'dist', ...args], { cwd: root, encoding: 'utf8' });
+	try {
+		await writeFile(join(dist, 'index.html'), authored);
+		await writeFile(join(dist, 'custom.json'), JSON.stringify({ 'X-Frame-Options': 'DENY' }));
+		for (let runIndex = 0; runIndex < 2; runIndex++) {
+			expect(run('--headers-output', 'dist/custom.json').status).toBe(0);
+			expect(await readFile(join(dist, 'index.html'), 'utf8')).toBe(authored);
+			expect(JSON.parse(await readFile(join(dist, 'custom.json'), 'utf8'))).toMatchObject({
+				'Content-Security-Policy': "default-src 'none'; script-src 'none'",
+				'X-Frame-Options': 'DENY',
+			});
+		}
+		await writeFile(
+			join(root, 'vercel.json'),
+			JSON.stringify({
+				headers: [
+					{
+						source: '/(.*)',
+						headers: [{ key: 'Content-Security-Policy', value: "default-src 'none'" }],
+					},
+				],
+			}),
+		);
+		const conflict = run('--emit', 'vercel');
+		expect(conflict.status).toBe(1);
+		expect(conflict.stderr).toContain('overlaps');
+		expect(await readFile(join(dist, 'index.html'), 'utf8')).toBe(authored);
+		expect(run('--no-html', '--local-script-integrity').status).toBe(1);
+		const badParent = join(root, 'blocked');
+		await writeFile(badParent, 'not a directory');
+		expect(
+			run('--replace-existing', '--headers-output', join(badParent, 'headers.json')).status,
+		).toBe(1);
+		expect(await readFile(join(dist, 'index.html'), 'utf8')).toBe(authored);
+		expect(run('--replace-existing', '--headers-output', 'dist/custom.json').status).toBe(0);
+		expect(await readFile(join(dist, 'index.html'), 'utf8')).toContain('data-csp-plugins="cli"');
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('selects CSP options from the manifest for the requested build only', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-manifest-selection-'));
+	const dir = join(root, '.csp-manifest');
+	await mkdir(dir);
+	try {
+		for (const name of ['one', 'two']) {
+			await mkdir(join(root, name));
+			await writeFile(join(root, name, 'index.html'), page(name));
+			await writeFile(
+				join(dir, name + '.json'),
+				JSON.stringify({
+					buildTool: 'vite',
+					buildTime: Date.now(),
+					outputDir: name,
+					assets: [],
+					cspProcessorOptions: {
+						baseDirectives: { CSP: { 'script-src': [`https://${name}.invalid`] } },
+					},
+				}),
+			);
+		}
+		const result = spawnSync(process.execPath, [cli, 'two'], { cwd: root, encoding: 'utf8' });
+		expect(result.status).toBe(0);
+		const headers = await readFile(join(root, 'two', 'csp-headers.json'), 'utf8');
+		expect(headers).toContain('https://two.invalid');
+		expect(headers).not.toContain('https://one.invalid');
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

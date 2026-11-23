@@ -17,7 +17,7 @@ export default defineConfig({
 });
 ```
 
-A production build adds a CSP meta tag to each emitted HTML page and emits
+A production build adds a CSP meta tag to each bundled HTML entry and emits
 `csp-headers.json` in the output directory. One page produces a flat header map.
 A multi-page build produces a `routes` object keyed by deployed HTML path,
 including the Vite `base`. Set `generateCsp: false` to track assets only,
@@ -28,10 +28,31 @@ HTTP policy, select the entry for the requested HTML document. A single policy
 from a multi-page build can block other pages. Meta policies apply to their own
 document. Directives such as `frame-ancestors` require an HTTP header.
 
-Ordinary Vite dev and HMR run unchanged by default. `devServer: true` opts into
-a policy on dev HTML. Vite and framework plugins can inject styles or scripts at
-runtime that require a deliberate development policy. Verify these flows before
-enabling the option on a development application.
+Ordinary Vite dev and HMR run unchanged by default. To test CSP in dev,
+enable `devServer` and supply a development-only policy. This example lets
+Vite inject styles and connect to its development WebSocket on port 5173.
+
+```ts
+csp({
+  devServer: true,
+  devCspProcessorOptions: {
+    enableHashes: false,
+    baseDirectives: {
+      CSP: {
+        'script-src': ['self', 'unsafe-inline'],
+        'style-src': ['self', 'unsafe-inline'],
+        'connect-src': ['self', 'ws://localhost:5173'],
+      },
+    },
+  },
+});
+```
+
+`devCspProcessorOptions` applies to dev HTML only. Adjust the WebSocket source
+to match your Vite server. A pre-existing enforcing meta tag is preserved
+unless you explicitly set `cspProcessorOptions.metaTagOptions.replaceExisting`
+or its development equivalent. Run the CLI on the publish directory if your
+Vite project also copies separate HTML pages from `public`.
 
 ## Asset tracking
 

@@ -33,13 +33,21 @@ export async function processStaticHtml(
 	pagePath: string,
 	options: CSPProcessorOptions,
 	readAsset: (path: string) => Promise<string | Uint8Array | undefined>,
+	owner: 'vite' | 'cli',
 ): Promise<CSPResult> {
 	const hashing = options.externalSources?.hashing;
 	const pageUrl = new URL(pagePath, STATIC_ORIGIN);
 	let assetBase = pageUrl;
+	const hashes = new Map<string, Promise<string | undefined>>();
+	let readFailure: Error | undefined;
 	const processor = new CSPProcessor({
 		...options,
 		enableNonces: false,
+		metaTagOptions: {
+			...options.metaTagOptions,
+			attributes: { ...options.metaTagOptions?.attributes, 'data-csp-plugins': owner },
+			replaceExisting: true,
+		},
 		developmentMode: false,
 		externalSources: {
 			...options.externalSources,
@@ -55,10 +63,23 @@ export async function processStaticHtml(
 					if (hashing?.hashGenerator) return hashing.hashGenerator(source, type);
 					const url = new URL(source, assetBase);
 					if (url.origin !== pageUrl.origin) return undefined;
-					const bytes = await readAsset(url.pathname);
-					return bytes === undefined
-						? undefined
-						: generateHash(bytes, options.hashAlgorithm ?? 'sha256');
+					let digest = hashes.get(url.pathname);
+					if (!digest) {
+						digest = readAsset(url.pathname)
+							.then((bytes) =>
+								bytes === undefined
+									? undefined
+									: generateHash(bytes, options.hashAlgorithm ?? 'sha256'),
+							)
+							.catch((error: unknown) => {
+								readFailure = new Error(`Cannot read ${url.pathname} for ${pagePath}`, {
+									cause: error,
+								});
+								return undefined;
+							});
+						hashes.set(url.pathname, digest);
+					}
+					return digest;
 				},
 			},
 		},
@@ -72,5 +93,15 @@ export async function processStaticHtml(
 			// Browsers fall back to the document URL if the base cannot be parsed.
 		}
 	}
-	return processor.processDOM(document);
+	const authored = processor.getMetaPoliciesToPreserve(document, owner);
+	const preserve = authored.length > 0 && options.metaTagOptions?.replaceExisting !== true;
+	const result = await processor.processDOM(document);
+	if (readFailure) throw readFailure;
+	if (preserve) {
+		result.html = html;
+		if ('Content-Security-Policy' in result.headers) {
+			result.headers['Content-Security-Policy'] = authored.join(', ');
+		}
+	}
+	return result;
 }

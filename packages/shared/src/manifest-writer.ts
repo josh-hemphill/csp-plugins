@@ -72,6 +72,7 @@ export class ManifestWriter {
 		} else if ('buildTool' in manifest) {
 			contentForHashing.buildTool = manifest.buildTool;
 			contentForHashing.outputDir = manifest.outputDir;
+			contentForHashing.outputPath = manifest.outputPath;
 		}
 
 		const contentString = JSON.stringify(contentForHashing, null, 0);
@@ -150,7 +151,10 @@ export class ManifestWriter {
 						!isRecord(manifest.cspProcessorOptions)
 					)
 						continue;
-					const key = JSON.stringify([manifest.buildTool, manifest.outputDir]);
+					const key = JSON.stringify([
+						manifest.buildTool,
+						manifest.outputPath ?? manifest.outputDir,
+					]);
 					const prior = manifests.get(key);
 					if (!prior || prior.buildTime < manifest.buildTime) manifests.set(key, manifest);
 				} catch {

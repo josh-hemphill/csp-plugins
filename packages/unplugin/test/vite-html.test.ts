@@ -119,3 +119,40 @@ it('keys multi-page headers by final HTML path and resets them on rebuild', asyn
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+it('hashes assets copied from Vite public and protects its header file', async () => {
+	const { createHash } = await import('node:crypto');
+	const { mkdir, rm } = await import('node:fs/promises');
+	const root = await mkdtemp(join(tmpdir(), 'csp-vite-public-'));
+	const publicDir = join(root, 'public');
+	await mkdir(publicDir);
+	const opts = {
+		root,
+		base: '/app/',
+		logLevel: 'silent' as const,
+		plugins: [
+			cspVitePlugin({
+				cspProcessorOptions: { externalSources: { hashing: { localScriptIntegrity: true } } },
+			}),
+		],
+	};
+	try {
+		await writeFile(
+			join(root, 'index.html'),
+			'<!doctype html><html><head><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/app.css"></head><body><script src="/app.js"></script></body></html>',
+		);
+		await writeFile(join(publicDir, 'app.css'), 'body{color:red}\r\n');
+		await writeFile(join(publicDir, 'app.js'), 'console.log("public asset")');
+		await build(opts);
+		const html = await readFile(join(root, 'dist', 'index.html'), 'utf8');
+		for (const file of ['app.css', 'app.js']) {
+			const bytes = await readFile(join(root, 'dist', file));
+			const hash = 'sha256-' + createHash('sha256').update(bytes).digest('base64');
+			expect(html.split(hash)).toHaveLength(file.endsWith('.css') ? 4 : 3); // CSP meta plus every occurrence
+		}
+		await writeFile(join(publicDir, 'csp-headers.json'), '{}');
+		await expect(build(opts)).rejects.toThrow(/CSP header output conflicts/);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

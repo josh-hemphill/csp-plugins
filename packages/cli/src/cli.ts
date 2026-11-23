@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -23,16 +23,6 @@ import type { AssetManifest } from '@csp-plugins/shared/types';
 import type { CspDirectiveHeaders, CspDirectives } from '@csp-plugins/typed-directives';
 import log from 'loglevel';
 
-/**
- * Consolidated manifest structure that combines multiple manifests
- */
-interface ConsolidatedManifest extends AssetManifest {
-	consolidated: true;
-	consolidationTime: number;
-	buildTools: string[];
-	outputDirs: string[];
-}
-
 interface CliOptions {
 	/** Input directory containing built assets */
 	inputDir: string;
@@ -48,6 +38,8 @@ interface CliOptions {
 	cspOptions?: CSPProcessorOptions;
 	/** Whether to process HTML files */
 	processHTML?: boolean;
+	/** Replace an existing enforcing meta policy. */
+	replaceExisting?: boolean;
 	/** Whether to generate CSP headers file */
 	generateHeaders?: boolean;
 	/** Output file for CSP headers */
@@ -128,81 +120,37 @@ export class CliProcessor {
 		this.manifestWriter = new ManifestWriter(this.options.manifestsDir);
 	}
 
-	/**
-	 * Load and combine CSP manifests from manifests directory
-	 */
+	/** Load policy options only from manifests that describe this publish input. */
 	async loadManifest(): Promise<void> {
-		try {
-			const manifestsDir = this.options.manifestsDir;
-			if (manifestsDir === undefined || manifestsDir === null || manifestsDir === '') {
-				log.warn('No manifests directory specified');
-				return;
-			}
-
-			// Read all manifests from the directory
-			const manifests = await this.manifestWriter.readManifests();
-
-			if (manifests.length === 0) {
-				log.warn(`No manifest files found in ${manifestsDir}`);
-
-				// If auto-manifest is enabled, generate one automatically
-				if (this.options.autoManifest === true) {
-					await this.generateAutoManifest();
-					return;
-				}
-
-				return;
-			}
-
-			// Only log manifest info in verbose mode or when there are issues
-			if (manifests.length > 1) {
-				log.info(`Found ${manifests.length} manifest files in ${manifestsDir}`);
-			}
-
-			// Create consolidated manifest
-			const consolidatedPath = await this.manifestWriter.writeConsolidatedManifest(manifests);
-
-			// Only log consolidation info in verbose mode
-			if (manifests.length > 1) {
-				log.info(`Created consolidated manifest: ${consolidatedPath}`);
-			}
-
-			// Load the consolidated manifest
-			const consolidatedContent = await readFile(consolidatedPath, 'utf-8');
-			const consolidatedManifest = JSON.parse(consolidatedContent) as ConsolidatedManifest;
-
-			// Convert consolidated manifest to standard AssetManifest format
-			this.manifest = {
-				buildTool: consolidatedManifest.buildTools.join('+'),
-				buildTime: consolidatedManifest.consolidationTime,
-				outputDir: consolidatedManifest.outputDirs[0] || this.options.inputDir,
-				assets: consolidatedManifest.assets,
-				cspProcessorOptions: consolidatedManifest.cspProcessorOptions,
-			};
-
-			// Merge manifest's CSP processor options into CLI options
-			this.mergeManifestOptions();
-
-			// Only log detailed manifest info in verbose mode
-			if (manifests.length > 1) {
-				log.info(
-					`Loaded consolidated CSP manifest with ${this.manifest.assets.length} total assets from ${manifests.length} build tools`,
-				);
-			}
-
-			// Copy consolidated manifest to output directory as manifest.json
-			// await this.copyManifestToOutput();
-		} catch (error) {
-			log.warn(`Could not load CSP manifests: ${String(error)}`);
-
-			// If auto-manifest is enabled, try to generate one as fallback
-			if (this.options.autoManifest === true) {
-				await this.generateAutoManifest();
-				return;
-			}
-
-			this.manifest = null;
+		const manifestsDir = resolve(this.options.manifestsDir ?? '.csp-manifest');
+		const matches = (await this.manifestWriter.readManifests()).filter(
+			(manifest) =>
+				resolve(dirname(manifestsDir), manifest.outputPath ?? manifest.outputDir) ===
+				this.options.inputDir,
+		);
+		if (matches.length === 0) {
+			log.debug(`No manifest for ${this.options.inputDir} in ${manifestsDir}`);
+			if (this.options.autoManifest) await this.generateAutoManifest();
+			return;
 		}
+
+		const configured = matches.filter(
+			(manifest) => Object.keys(manifest.cspProcessorOptions).length > 0,
+		);
+		const selected = configured[0] ?? matches[0];
+		if (
+			configured.some(
+				(manifest) =>
+					JSON.stringify(manifest.cspProcessorOptions) !==
+					JSON.stringify(selected.cspProcessorOptions),
+			)
+		) {
+			throw new Error(
+				'Several manifests for this build define different CSP options. Select a specific --manifests-dir.',
+			);
+		}
+		this.manifest = selected;
+		this.mergeManifestOptions();
 	}
 
 	/**
@@ -326,10 +274,20 @@ export class CliProcessor {
 			? await this.planHeaderOutputs(files)
 			: new Map<string, string>();
 		for (const path of artifacts.keys()) {
-			if (pages.has(path) || (files.has(path) && path === this.options.headersOutput)) {
+			if (
+				pages.has(path) ||
+				(files.has(path) && path === this.options.headersOutput && !path.endsWith('.json'))
+			) {
 				throw new Error(`CSP output would overwrite an input file: ${path}`);
 			}
 		}
+		await this.checkWriteDestinations([
+			...artifacts.keys(),
+			...pages.keys(),
+			...Array.from(files)
+				.filter(([dest, source]) => dest !== source)
+				.map(([dest]) => dest),
+		]);
 		if (inputDir !== outputDir) await mkdir(outputDir, { recursive: true });
 		for (const [dest, source] of files) {
 			if (dest !== source && !pages.has(dest) && !artifacts.has(dest)) {
@@ -355,8 +313,8 @@ export class CliProcessor {
 			const dest = join(output, entry.name);
 			if (
 				(source === this.options.outputDir && input !== output) ||
-				entry.name === 'csp-headers.json' ||
-				entry.name === '.csp-headers-state.json' ||
+				source === join(this.options.inputDir, 'csp-headers.json') ||
+				source === join(this.options.inputDir, '.csp-headers-state.json') ||
 				entry.name === '.csp-manifest' ||
 				entry.name === '.csp-cache' ||
 				entry.name === 'node_modules' ||
@@ -385,6 +343,25 @@ export class CliProcessor {
 		}
 	}
 
+	private async checkWriteDestinations(paths: Iterable<string>): Promise<void> {
+		const checkedDirectories = new Set<string>();
+		for (const path of paths) {
+			if (existsSync(path) && !(await lstat(path)).isFile()) {
+				throw new Error(`Cannot write to ${path}. The destination must be a regular file.`);
+			}
+			let parent = dirname(path);
+			while (!checkedDirectories.has(parent)) {
+				checkedDirectories.add(parent);
+				if (existsSync(parent)) {
+					if (!(await lstat(parent)).isDirectory())
+						throw new Error(`Cannot write to ${path}. ${parent} is not a directory.`);
+					break;
+				}
+				parent = dirname(parent);
+			}
+		}
+	}
+
 	private async processHTMLFile(
 		source: string,
 		writeHtml: boolean,
@@ -404,6 +381,13 @@ export class CliProcessor {
 					? this.options.cspOptions.externalSources
 					: { hashing: { scripts: false, styles: false } },
 				injectMetaTag: writeHtml && this.options.cspOptions.injectMetaTag !== false,
+				metaTagOptions: {
+					...this.options.cspOptions.metaTagOptions,
+					replaceExisting:
+						writeHtml &&
+						(this.options.replaceExisting ??
+							this.options.cspOptions.metaTagOptions?.replaceExisting) === true,
+				},
 			},
 			async (assetPath) => {
 				try {
@@ -420,6 +404,7 @@ export class CliProcessor {
 					throw error;
 				}
 			},
+			'cli',
 		);
 		if (collectHeaders && 'Content-Security-Policy' in result.headers)
 			this.pageHeaders.set(path, result.headers);
@@ -449,7 +434,13 @@ export class CliProcessor {
 				: {};
 		const next = { ...previous };
 		if (headersOutput && (generateHeaders !== false || emit.includes('json'))) {
-			writes.set(headersOutput, `${JSON.stringify(headers, null, 2)}\n`);
+			const generatedInput =
+				headersOutput === join(outputDir, 'csp-headers.json')
+					? join(this.options.inputDir, 'csp-headers.json')
+					: files.get(headersOutput);
+			const existing = existsSync(headersOutput) ? headersOutput : generatedInput;
+			const config = existing && existsSync(existing) ? await readFile(existing, 'utf8') : '';
+			writes.set(headersOutput, mergeStaticHeaders('json', config, headers));
 		}
 		for (const id of emit) {
 			if (id === 'json' || (id === 'netlify' && emit.includes('cloudflare-pages'))) continue;
@@ -459,8 +450,15 @@ export class CliProcessor {
 			if (writes.has(dest)) {
 				throw new Error(`Two generated outputs are configured for ${dest}`);
 			}
-			const source = files.get(dest) ?? dest;
-			const existing = existsSync(source) ? await readFile(source, 'utf8') : '';
+			const source = files.get(dest);
+			const fromInput = source && source !== dest ? await readFile(source, 'utf8') : '';
+			const onDisk = existsSync(dest) ? await readFile(dest, 'utf8') : '';
+			if (fromInput.trim() && onDisk.trim() && !onDisk.trim().startsWith(fromInput.trim())) {
+				throw new Error(
+					`Both ${source} and ${dest} contain different configuration. Reconcile them before generating headers.`,
+				);
+			}
+			const existing = onDisk || fromInput;
 			try {
 				writes.set(
 					dest,
@@ -523,7 +521,8 @@ Options:
   --project-dir <dir>       Directory containing vercel.json or firebase.json (default: cwd)
   --manifests-dir <dir>     Directory containing CSP manifest files (default: .csp-manifest)
   --cache-dir <dir>         Cache directory for filesystem cache (default: .csp-cache)
-  --no-html                 Skip HTML file processing
+  --no-html                 Analyze HTML without rewriting it
+  --replace-existing        Replace an authored or Vite-generated CSP meta policy
   --no-headers              Skip CSP headers generation
   --headers-output <file>   Output file for CSP headers (default: csp-headers.json)
   --local-script-integrity  Enable integrity attributes for local scripts (advanced security)
@@ -576,6 +575,7 @@ Examples:
 				if (name === 'emit') options.emit = parseAdapterIds(value);
 				else options[valueOptions[name as keyof typeof valueOptions]] = value;
 			} else if (name === 'no-html') options.processHTML = false;
+			else if (name === 'replace-existing') options.replaceExisting = true;
 			else if (name === 'no-headers') options.generateHeaders = false;
 			else if (name === 'local-script-integrity' || name === 'integrity')
 				options.localScriptIntegrity = true;
@@ -589,6 +589,11 @@ Examples:
 				throw new Error(`Unexpected argument: ${arg}`);
 			options.inputDir = arg;
 		}
+	}
+	if (options.processHTML === false && (options.localScriptIntegrity || options.replaceExisting)) {
+		throw new Error(
+			'--no-html cannot be combined with --local-script-integrity or --replace-existing.',
+		);
 	}
 	if (!options.inputDir) {
 		if (actions.size === 0) throw new Error('Specify the static build directory to process.');

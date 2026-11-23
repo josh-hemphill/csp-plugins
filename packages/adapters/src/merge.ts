@@ -1,3 +1,5 @@
+import { posix } from 'node:path';
+
 import type { CspDirectiveHeaders } from '@csp-plugins/typed-directives';
 
 import { emitApache, emitCaddy, emitExpress, emitJson, emitNetlify, emitNginx } from './emit.ts';
@@ -128,7 +130,9 @@ function updateFirebaseSite(
 			isRecord(site) &&
 			(options?.firebaseTarget !== undefined
 				? site.target === options.firebaseTarget
-				: options?.publicDir !== undefined && site.public === options.publicDir)
+				: options?.publicDir !== undefined &&
+					typeof site.public === 'string' &&
+					posix.normalize(site.public) === posix.normalize(options.publicDir))
 				? [index]
 				: [],
 		);
@@ -143,7 +147,18 @@ function updateFirebaseSite(
 	}
 	if (base.hosting !== undefined && !isRecord(base.hosting))
 		throw new Error('Invalid Firebase Hosting configuration');
-	const site = base.hosting ?? (options?.publicDir ? { public: options.publicDir } : {});
+	const site = base.hosting ?? {};
+	if (
+		options?.publicDir &&
+		site.public !== undefined &&
+		(typeof site.public !== 'string' ||
+			posix.normalize(site.public) !== posix.normalize(options.publicDir))
+	) {
+		throw new Error(
+			`Firebase Hosting publishes ${String(site.public)} but the selected output directory is ${options.publicDir}`,
+		);
+	}
+	if (options?.publicDir && site.public === undefined) site.public = options.publicDir;
 	base.hosting = update(site);
 }
 
@@ -166,7 +181,8 @@ export function prepareStructuredConfig(
 	id: 'vercel' | 'firebase',
 	existing: string,
 	previousRules: ReadonlyMap<string, CspDirectiveHeaders>,
-	nextPaths: ReadonlySet<string> | undefined,
+	nextPaths: ReadonlySet<string>,
+	routed: boolean,
 	options?: HeaderAdapterOptions,
 ): string {
 	const parsed: unknown = existing.trim() ? JSON.parse(existing) : {};
@@ -204,8 +220,8 @@ export function prepareStructuredConfig(
 			);
 			if (
 				conflicting &&
-				nextPaths &&
-				(typeof group.source !== 'string' ||
+				(!routed ||
+					typeof group.source !== 'string' ||
 					!/^\/[\w.%/-]*$/.test(group.source) ||
 					nextPaths.has(group.source))
 			) {

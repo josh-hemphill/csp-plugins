@@ -430,6 +430,16 @@ export class CSPProcessor {
 		return document;
 	}
 
+	/** Enforced policies already supplied by the HTML author. */
+	getMetaPoliciesToPreserve(document: Document, owner: string): string[] {
+		const head = findOne((element) => element.name === 'head', document.children, true);
+		if (!head) return [];
+		return this.findExistingCSPMetaTags(head)
+			.filter((meta) => meta.attribs['data-csp-plugins'] !== owner)
+			.map((meta) => meta.attribs.content?.replace(/[\t\n\r]+/g, ' '))
+			.filter((policy): policy is string => Boolean(policy?.trim()));
+	}
+
 	/** The first HTML base URL, if present. */
 	getDocumentBase(document: Document): string | undefined {
 		const node = findOne(
@@ -445,23 +455,6 @@ export class CSPProcessor {
 	 */
 	private sourceTextFromElementChildren(element: Element): string {
 		return serialize(element.children, serializeOptions).replace(/\r\n?/g, '\n');
-	}
-
-	private tryPushSource<T extends AnalysisNode<false> | AnalysisNode<true>>(
-		result: Array<T>,
-		source: T,
-	): void {
-		if ('content' in source) {
-			const R = result as Array<AnalysisNode<true>>;
-			if (R.find((s) => s.content === source.content) === undefined) {
-				R.push(source);
-			}
-		} else {
-			const R = result as Array<AnalysisNode<false>>;
-			if (R.find((s) => s.src === source.src) === undefined) {
-				R.push(source);
-			}
-		}
 	}
 
 	/**
@@ -495,7 +488,7 @@ export class CSPProcessor {
 				const element = ele;
 				const src = element.attribs.src;
 				if (src) {
-					this.tryPushSource(result.scriptSources, {
+					result.scriptSources.push({
 						src,
 						element,
 					} as AnalysisNode<false>);
@@ -503,7 +496,7 @@ export class CSPProcessor {
 					// Inline script
 					const content = this.sourceTextFromElementChildren(element) || '';
 					if (content.trim()) {
-						this.tryPushSource(result.inlineScripts, {
+						result.inlineScripts.push({
 							content,
 							element,
 						} as AnalysisNode<true>);
@@ -513,7 +506,7 @@ export class CSPProcessor {
 				const element = ele;
 				const src = element.attribs.src;
 				if (src) {
-					this.tryPushSource(result.styleSources, {
+					result.styleSources.push({
 						src,
 						element,
 					} as AnalysisNode<false>);
@@ -521,7 +514,7 @@ export class CSPProcessor {
 					// Inline style
 					const content = this.sourceTextFromElementChildren(element) || '';
 					if (content.trim()) {
-						this.tryPushSource(result.inlineStyles, {
+						result.inlineStyles.push({
 							content,
 							element,
 						} as AnalysisNode<true>);
@@ -533,14 +526,14 @@ export class CSPProcessor {
 				const href = element.attribs.href;
 				if (href) {
 					if (rel === 'stylesheet') {
-						this.tryPushSource(result.styleSources, {
+						result.styleSources.push({
 							src: href,
 							element,
 						} as AnalysisNode<false>);
 					} else if (rel === 'preload' || rel === 'prefetch') {
 						const as = element.attribs.as;
 						if (as === 'font') {
-							this.tryPushSource(result.fontSources, {
+							result.fontSources.push({
 								src: href,
 								element,
 							} as AnalysisNode<false>);
@@ -548,7 +541,7 @@ export class CSPProcessor {
 							if (result.otherSources?.[as] === undefined) {
 								result.otherSources[as] = [];
 							}
-							this.tryPushSource(result.otherSources[as], {
+							result.otherSources[as].push({
 								src: href,
 								element,
 							} as AnalysisNode<false>);
@@ -559,7 +552,7 @@ export class CSPProcessor {
 				const element = ele;
 				const src = element.attribs.src;
 				if (src) {
-					this.tryPushSource(result.imageSources, {
+					result.imageSources.push({
 						src,
 						element,
 					} as AnalysisNode<false>);
@@ -1122,7 +1115,13 @@ export class CSPProcessor {
 				tagElement.name === 'img' ||
 				tagElement.name === 'link'
 			) {
-				tagElement.attribs.integrity = toHashSource(hash, this.options.hashAlgorithm);
+				if (
+					!tagElement.attribs.integrity ||
+					Object.hasOwn(tagElement.attribs, 'data-csp-plugins-integrity')
+				) {
+					tagElement.attribs.integrity = toHashSource(hash, this.options.hashAlgorithm);
+					tagElement.attribs['data-csp-plugins-integrity'] = '';
+				}
 			}
 		}
 	}

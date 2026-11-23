@@ -34,6 +34,8 @@ export interface AssetManifest {
 	buildTime: number;
 	/** Output directory */
 	outputDir: string;
+	/** Absolute path of the output at build time, when available. */
+	outputPath?: string;
 	/** All tracked assets */
 	assets: TrackedAsset[];
 	/** CSP processor options */
@@ -68,6 +70,8 @@ export interface CspPluginOptions {
 	manifestDir?: string;
 	/** Whether to enable dev server integration */
 	devServer?: boolean;
+	/** Options for the Vite dev HTML policy. Production ignores these. */
+	devCspProcessorOptions?: CSPProcessorOptions;
 	/** Patterns to include/exclude from tracking */
 	includePatterns?: Array<string | RegExp>;
 	excludePatterns?: Array<string | RegExp>;

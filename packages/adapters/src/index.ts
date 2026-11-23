@@ -14,6 +14,7 @@ import {
 	stringifyAdapterOutput,
 } from './merge.ts';
 import {
+	cspHeaderNames,
 	isAdapterId,
 	type AdapterId,
 	type HeaderAdapter,
@@ -76,7 +77,7 @@ const adapters: Record<AdapterId, HeaderAdapter> = {
 	},
 	express: {
 		id: 'express',
-		fileName: 'csp-headers.middleware.js',
+		fileName: 'csp-headers.middleware.mjs',
 		emit: (headers) => mergeExpress('', headers),
 		merge: (existing, headers) => mergeExpress(existing, headers),
 	},
@@ -118,6 +119,7 @@ export type StaticHeaderArtifact =
 function headerRules(
 	headers: StaticHeaderArtifact | undefined,
 	fallback: string,
+	cleanPaths: boolean,
 ): Map<string, CspDirectiveHeaders> {
 	if (!headers) return new Map();
 	if (!('routes' in headers)) return new Map([[fallback, headers]]);
@@ -125,6 +127,8 @@ function headerRules(
 	for (const [path, value] of rules) {
 		if (!/^\/[\w.%/-]*$/.test(path)) throw new Error(`Unsupported static header path: ${path}`);
 		if (path.endsWith('/index.html')) rules.set(path.slice(0, -'index.html'.length), value);
+		else if (cleanPaths && path.endsWith('.html'))
+			rules.set(path.slice(0, -'.html'.length), value);
 	}
 	return rules;
 }
@@ -141,10 +145,18 @@ export function mergeStaticHeaders(
 	previous?: StaticHeaderArtifact,
 ): string {
 	const adapter = getAdapter(id);
-	if (id === 'json')
-		return 'routes' in headers
-			? stringifyAdapterOutput(headers)
-			: adapter.merge(existing, headers);
+	if (id === 'json') {
+		const parsed: unknown = existing.trim() ? JSON.parse(existing) : {};
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+			throw new Error('Expected a JSON header map');
+		const managed = new Set<string>(cspHeaderNames.map((name) => name.toLowerCase()));
+		const entries = Object.entries(parsed).filter(
+			([name]) => name !== 'routes' && !managed.has(name.toLowerCase()),
+		);
+		if (entries.some(([, value]) => typeof value !== 'string'))
+			throw new Error('Expected a JSON header map');
+		return stringifyAdapterOutput({ ...Object.fromEntries(entries), ...headers });
+	}
 	const routed = 'routes' in headers;
 	if (id === 'nginx' || id === 'apache' || id === 'caddy' || id === 'express') {
 		if (routed)
@@ -154,7 +166,8 @@ export function mergeStaticHeaders(
 		return adapter.merge(existing, headers);
 	}
 	const fallback = id === 'vercel' ? '/(.*)' : id === 'firebase' ? '**' : '/*';
-	const rules = headerRules(headers, fallback);
+	const cleanPaths = id === 'cloudflare-pages' || id === 'netlify';
+	const rules = headerRules(headers, fallback, cleanPaths);
 	if (id === 'netlify' || id === 'cloudflare-pages') {
 		const prefix = existing.split(/\r?\n/);
 		const begin = prefix.indexOf(routeStart);
@@ -186,22 +199,25 @@ export function mergeStaticHeaders(
 		const output = [...rules]
 			.map(([source, value]) => emitAdapter(id, value, { pathPrefix: source }).trimEnd())
 			.join('\n\n');
-		if (
-			id === 'cloudflare-pages' &&
-			(rules.size > 100 || output.split('\n').some((line) => line.length > 2000))
-		) {
-			throw new Error(
-				'Generated Cloudflare Pages headers exceed its 100-rule or 2,000-character line limit',
-			);
+		const merged = `${remaining ? remaining + '\n\n' : ''}${routeStart}\n${output}\n${routeEnd}\n`;
+		if (id === 'cloudflare-pages') {
+			const lines = merged.split('\n');
+			const paths = lines.filter((line) => line.trim() && !/^[#\s]/.test(line));
+			if (paths.length > 100 || lines.some((line) => line.length > 2000)) {
+				throw new Error(
+					'Cloudflare Pages headers exceed its 100-rule or 2,000-character line limit',
+				);
+			}
 		}
-		return `${remaining ? remaining + '\n\n' : ''}${routeStart}\n${output}\n${routeEnd}\n`;
+		return merged;
 	}
-	const prior = headerRules(previous, fallback);
+	const prior = headerRules(previous, fallback, cleanPaths);
 	let output = prepareStructuredConfig(
 		id,
 		existing,
 		prior,
-		routed ? new Set(rules.keys()) : undefined,
+		new Set(rules.keys()),
+		routed,
 		options,
 	);
 	for (const [path, value] of rules) {

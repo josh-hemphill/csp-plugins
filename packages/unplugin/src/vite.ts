@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { CSPProcessor, generateHash } from '@csp-plugins/core';
@@ -14,8 +15,9 @@ const HTML_EXT = /\.html?$/i;
 
 export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 	const settings = new CommonAssetTracker('vite', options).getOptions();
+	const devOptions = { ...settings.cspProcessorOptions, ...settings.devCspProcessorOptions };
 	const devProcessor = new CSPProcessor({
-		...settings.cspProcessorOptions,
+		...devOptions,
 		developmentMode: true,
 		enableNonces: false,
 	});
@@ -31,7 +33,13 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 			order: 'post',
 			async handler(html, context) {
 				if (!context.server || !settings.devServer || !settings.generateCsp) return html;
-				return (await devProcessor.processHTML(html)).html ?? html;
+				const document = devProcessor.parseHTML(html);
+				if (
+					devOptions.metaTagOptions?.replaceExisting !== true &&
+					devProcessor.getMetaPoliciesToPreserve(document, 'vite').length > 0
+				)
+					return html;
+				return (await devProcessor.processDOM(document)).html ?? html;
 			},
 		},
 		generateBundle: {
@@ -39,6 +47,19 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 			async handler(output, bundle, isWrite) {
 				const base = config.base === './' || config.base === '' ? '/' : config.base;
 				const files = Object.values(bundle);
+				const publicFiles = new Map<string, { name: string; path: string }>();
+				if (config.build.copyPublicDir && config.publicDir && existsSync(config.publicDir)) {
+					const entries = await readdir(config.publicDir, {
+						recursive: true,
+						withFileTypes: true,
+					});
+					for (const entry of entries) {
+						if (!entry.isFile()) continue;
+						const path = resolve(entry.parentPath, entry.name);
+						const name = relative(config.publicDir, path).split(sep).join('/');
+						publicFiles.set(staticHtmlPath(name, base), { name, path });
+					}
+				}
 				const assets = new Map(
 					files.map((file) => [staticHtmlPath(file.fileName, base), file]),
 				);
@@ -58,8 +79,12 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 							settings.cspProcessorOptions,
 							async (assetPath) => {
 								const asset = assets.get(assetPath);
-								return asset?.type === 'chunk' ? asset.code : asset?.source;
+								if (asset?.type === 'chunk') return asset.code;
+								if (asset) return asset.source;
+								const copied = publicFiles.get(assetPath);
+								return copied ? readFile(copied.path) : undefined;
 							},
+							'vite',
 						);
 						file.source = result.html ?? html;
 						if ('Content-Security-Policy' in result.headers)
@@ -80,7 +105,10 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 							await writeFile(fileName, source, 'utf8');
 						}
 					} else {
-						if (Object.hasOwn(bundle, fileName))
+						if (
+							Object.hasOwn(bundle, fileName) ||
+							publicFiles.has(staticHtmlPath(fileName, base))
+						)
 							this.error(`CSP header output conflicts with ${fileName}`);
 						this.emitFile({ type: 'asset', fileName, source });
 					}
@@ -106,14 +134,23 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 								: await generateHash(content, 'sha256'),
 					});
 				}
+				for (const [path, file] of publicFiles) {
+					if (assets.has(path)) continue;
+					tracker.trackAsset({
+						id: file.name,
+						path: file.name,
+						type: settings.assetTypeDetector(file.name),
+						inline: false,
+						hash: await generateHash(await readFile(file.path), 'sha256'),
+					});
+				}
+
 				const writer = new ManifestWriter(resolve(config.root, settings.manifestDir));
-				await writer.writeManifest(
-					await tracker.generateManifest(
-						relative(config.root, output.dir ?? resolve(config.root, config.build.outDir))
-							.split(sep)
-							.join('/') || '.',
-					),
+				const outputPath = output.dir ?? resolve(config.root, config.build.outDir);
+				const manifest = await tracker.generateManifest(
+					relative(config.root, outputPath).split(sep).join('/') || '.',
 				);
+				await writer.writeManifest({ ...manifest, outputPath });
 			},
 		},
 	};

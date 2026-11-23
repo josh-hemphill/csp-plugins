@@ -263,3 +263,30 @@ describe('static host configuration', () => {
 		expect(called).toBe(true);
 	});
 });
+
+it('rejects a wrong Firebase destination and an unmanaged Vercel catch-all policy', () => {
+	const firebase = JSON.stringify({ hosting: { public: 'other' } });
+	expect(() => mergeStaticHeaders('firebase', firebase, fixture, { publicDir: 'dist' })).toThrow(
+		/selected output directory/,
+	);
+	const vercel = JSON.stringify({
+		headers: [
+			{
+				source: '/(.*)',
+				headers: [{ key: 'content-security-policy', value: "default-src 'none'" }],
+			},
+		],
+	});
+	expect(() => mergeStaticHeaders('vercel', vercel, fixture)).toThrow(/overlaps/);
+});
+
+it('covers Cloudflare Pages clean URLs and validates the total rule count', () => {
+	const pages = { routes: { '/about.html': fixture, '/index.html': fixture } };
+	const output = mergeStaticHeaders('cloudflare-pages', '', pages);
+	expect(output).toMatch(/^\/about$/m);
+	const existing = Array.from(
+		{ length: 99 },
+		(_, i) => `/asset/${i}\n  Cache-Control: no-cache`,
+	).join('\n\n');
+	expect(() => mergeStaticHeaders('cloudflare-pages', existing, pages)).toThrow(/100-rule/);
+});

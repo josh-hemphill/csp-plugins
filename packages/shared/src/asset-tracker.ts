@@ -20,6 +20,7 @@ export class CommonAssetTracker {
 			cspProcessorOptions: {},
 			manifestDir: '.csp-manifest',
 			devServer: false,
+			devCspProcessorOptions: {},
 			includePatterns: [],
 			excludePatterns: [],
 			assetTypeDetector: this.defaultAssetTypeDetector.bind(this),
