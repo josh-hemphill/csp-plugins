@@ -1,6 +1,7 @@
 import type { CspDirectiveHeaders } from '@csp-plugins/typed-directives';
 
 import { emitFirebase, emitJson, emitNetlify, emitVercel } from './emit.ts';
+import { presentHeaders } from './headers.ts';
 import {
 	mergeApache,
 	mergeCaddy,
@@ -10,7 +11,7 @@ import {
 	mergeNetlify,
 	mergeNginx,
 	mergeVercel,
-	prepareStructuredConfig,
+	writeStructuredConfig,
 	readStructuredRouting,
 	stringifyAdapterOutput,
 } from './merge.ts';
@@ -152,6 +153,46 @@ function headerRules(
 	return rules;
 }
 
+export interface StructuredHeaderOwnership {
+	rules: Record<string, Partial<CspDirectiveHeaders>>;
+	publicDir?: string;
+	firebaseTarget?: string;
+}
+
+/** Plan a project config and retain the exact rules managed by that plan. */
+export function mergeStructuredStaticHeaders(
+	id: 'vercel' | 'firebase',
+	existing: string,
+	headers: StaticHeaderArtifact,
+	options?: Omit<HeaderAdapterOptions, 'pathPrefix'>,
+	previous?: StructuredHeaderOwnership | StaticHeaderArtifact,
+): { body: string; ownership: StructuredHeaderOwnership } {
+	const fallback = id === 'vercel' ? '/(.*)' : '**';
+	const routing = readStructuredRouting(id, existing, options);
+	const rules = headerRules(headers, fallback, routing.cleanUrls, routing.trailingSlash);
+	const prior =
+		previous && 'rules' in previous
+			? new Map(
+					Object.entries(
+						id === 'firebase' &&
+							(previous.publicDir !== options?.publicDir ||
+								previous.firebaseTarget !== options?.firebaseTarget)
+							? {}
+							: previous.rules,
+					),
+				)
+			: headerRules(previous, fallback, routing.cleanUrls, routing.trailingSlash);
+	const output = writeStructuredConfig(id, existing, prior, rules, 'routes' in headers, options);
+	return {
+		body: output.body,
+		ownership: {
+			rules: output.rules,
+			publicDir: options?.publicDir,
+			firebaseTarget: options?.firebaseTarget,
+		},
+	};
+}
+
 const routeStart = '# csp-plugins headers begin';
 const routeEnd = '# csp-plugins headers end';
 
@@ -161,7 +202,7 @@ export function mergeStaticHeaders(
 	existing: string,
 	headers: StaticHeaderArtifact,
 	options?: Omit<HeaderAdapterOptions, 'pathPrefix'>,
-	previous?: StaticHeaderArtifact,
+	previous?: StructuredHeaderOwnership | StaticHeaderArtifact,
 ): string {
 	const adapter = getAdapter(id);
 	if (id === 'json') {
@@ -206,12 +247,10 @@ export function mergeStaticHeaders(
 			);
 		return adapter.merge(existing, headers);
 	}
-	const fallback = id === 'vercel' ? '/(.*)' : id === 'firebase' ? '**' : '/*';
-	const routing =
-		id === 'vercel' || id === 'firebase'
-			? readStructuredRouting(id, existing, options)
-			: { cleanUrls: true };
-	const rules = headerRules(headers, fallback, routing.cleanUrls, routing.trailingSlash);
+	if (id === 'vercel' || id === 'firebase') {
+		return mergeStructuredStaticHeaders(id, existing, headers, options, previous).body;
+	}
+	const rules = headerRules(headers, '/*', true);
 	if (id === 'netlify' || id === 'cloudflare-pages') {
 		const prefix = existing.split(/\r?\n/);
 		const begin = prefix.indexOf(routeStart);
@@ -240,8 +279,29 @@ export function mergeStaticHeaders(
 				);
 			}
 		}
+		const hasReferrerPolicy = prefix.some((line) => /^\s*referrer-policy\s*:/i.test(line));
+		const hasReporting = prefix.some((line) => /^\s*report-to\s*:/i.test(line));
 		const output = [...rules]
-			.map(([source, value]) => emitAdapter(id, value, { pathPrefix: source }).trimEnd())
+			.map(([source, value]) => {
+				const effective: Partial<CspDirectiveHeaders> = { ...value };
+				if (
+					hasReferrerPolicy &&
+					effective['Referrer-Policy'] === 'strict-origin-when-cross-origin'
+				)
+					delete effective['Referrer-Policy'];
+				if (
+					(hasReferrerPolicy && effective['Referrer-Policy']) ||
+					(hasReporting && effective['Report-To'])
+				) {
+					throw new Error(
+						'An existing Referrer-Policy or Report-To header conflicts with the requested policy',
+					);
+				}
+				return [
+					source,
+					...presentHeaders(effective).map(([name, content]) => `  ${name}: ${content}`),
+				].join('\n');
+			})
 			.join('\n\n');
 		const merged = `${remaining ? remaining + '\n\n' : ''}${routeStart}\n${output}\n${routeEnd}\n`;
 		if (id === 'cloudflare-pages') {
@@ -255,17 +315,5 @@ export function mergeStaticHeaders(
 		}
 		return merged;
 	}
-	const prior = headerRules(previous, fallback, routing.cleanUrls, routing.trailingSlash);
-	let output = prepareStructuredConfig(
-		id,
-		existing,
-		prior,
-		new Set(rules.keys()),
-		routed,
-		options,
-	);
-	for (const [path, value] of rules) {
-		output = adapter.merge(output, value, { ...options, pathPrefix: path });
-	}
-	return output;
+	throw new Error(`Unsupported static header adapter: ${id}`);
 }

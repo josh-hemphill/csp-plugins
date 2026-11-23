@@ -22,7 +22,7 @@ it('serves each generated route policy and blocks an unlisted inline script', as
 	for (const page of ['index', 'about']) {
 		await writeFile(
 			join(root, page + '.html'),
-			`<!doctype html><html><head><title>${page}</title><template><meta http-equiv="Content-Security-Policy" content="script-src 'none'"></template></head><body><script>document.body.dataset.allowed = "${page}"</script><script src="/entry.js" integrity="${integrity}"></script></body></html>`,
+			`<!doctype html><html><title>${page}</title><template><meta http-equiv="Content-Security-Policy" content="script-src 'none'"></template><body><script>document.body.dataset.allowed = "${page}"</script><script src="/entry.js" integrity="${integrity}"></script></body></html>`,
 		);
 	}
 	await writeFile(
@@ -69,6 +69,7 @@ it('serves each generated route policy and blocks an unlisted inline script', as
 					waitUntil: 'load',
 				});
 				expect(await page.evaluate(() => document.body.dataset.allowed)).toBe(route);
+				expect(await page.evaluate(() => document.compatMode)).toBe('CSS1Compat');
 				expect(await page.evaluate(() => document.body.dataset.external)).toBe('yes');
 				expect(await page.evaluate(() => document.body.dataset.forbidden)).toBeUndefined();
 			}

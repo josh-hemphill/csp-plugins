@@ -35,7 +35,7 @@ With a single HTML page, the JSON file is a flat header map. Multi-page sites
 receive a `routes` object keyed by the emitted HTML paths. Meta tags remain
 page-specific in either mode. Browser requests that reach the same HTML via
 custom rewrites or clean URLs need a corresponding deployment header rule.
-Local integrity is derived from files under the static directory. A supplied SRI pin must match the file bytes when the corresponding integrity check is enabled. Remote asset
+Local integrity is derived from files under the static directory. When integrity checking is enabled, at least one of the strongest supplied SRI pins must match the file bytes. Remote asset
 integrity should be specified explicitly in your markup.
 
 ## Hosting

@@ -6,6 +6,7 @@ import {
 	emitAdapter,
 	getAdapter,
 	mergeStaticHeaders,
+	mergeStructuredStaticHeaders,
 	isAdapterId,
 	parseAdapterIds,
 	presentHeaders,
@@ -338,4 +339,47 @@ it('retains other response headers in existing JSON route maps', () => {
 	expect(() => mergeStaticHeaders('json', existing, fixture)).toThrow(
 		/user-managed route headers/,
 	);
+});
+
+it('removes old Vercel aliases after routing settings change and preserves authored auxiliary headers', () => {
+	const existing = JSON.stringify({
+		cleanUrls: true,
+		trailingSlash: false,
+		headers: [
+			{
+				source: '/other.html',
+				headers: [
+					{ key: 'Referrer-Policy', value: 'no-referrer' },
+					{ key: 'Report-To', value: '{"group":"user","max_age":60}' },
+				],
+			},
+		],
+	});
+	const initial = mergeStructuredStaticHeaders('vercel', existing, {
+		routes: { '/about.html': fixture, '/news/index.html': fixture, '/other.html': fixture },
+	});
+	const nextInput = { ...JSON.parse(initial.body), cleanUrls: false, trailingSlash: true };
+	const next = mergeStructuredStaticHeaders(
+		'vercel',
+		JSON.stringify(nextInput),
+		{
+			routes: { '/other.html': fixture, '/new.html': fixture },
+		},
+		undefined,
+		initial.ownership,
+	);
+	const config = JSON.parse(next.body);
+	const sources = config.headers.map((rule: { source: string }) => rule.source);
+	expect(sources).not.toContain('/about');
+	expect(sources).not.toContain('/news');
+	const other = config.headers.find((rule: { source: string }) => rule.source === '/other.html');
+	expect(other.headers).toEqual(
+		expect.arrayContaining([
+			{ key: 'Referrer-Policy', value: 'no-referrer' },
+			{ key: 'Report-To', value: '{"group":"user","max_age":60}' },
+		]),
+	);
+	expect(
+		other.headers.filter((header: { key: string }) => header.key === 'Referrer-Policy'),
+	).toHaveLength(1);
 });

@@ -9,9 +9,11 @@ import { fileURLToPath } from 'node:url';
 import {
 	getAdapter,
 	mergeStaticHeaders,
+	mergeStructuredStaticHeaders,
 	parseAdapterIds,
 	type AdapterId,
 	type StaticHeaderArtifact,
+	type StructuredHeaderOwnership,
 } from '@csp-plugins/adapters';
 import { SimpleFilesystemCache } from '@csp-plugins/basic-fscache';
 import type { CSPProcessorOptions } from '@csp-plugins/core';
@@ -373,19 +375,28 @@ export class CliProcessor {
 		const paths = [...files.values()]
 			.filter((file) => /\.html?$/i.test(file))
 			.map((file) => staticHtmlPath(relative(this.options.inputDir, file).split(sep).join('/')));
-		let candidates: Set<string> | undefined;
-		for (const path of Object.keys(previous.routes)) {
-			const matches = new Set(
-				paths
-					.filter((file) => path.endsWith(file))
-					.map((file) => path.slice(0, -file.length) + '/'),
-			);
-			if (matches.size > 0)
-				candidates = candidates
-					? new Set([...candidates].filter((candidate) => matches.has(candidate)))
-					: matches;
+		const savedPaths = new Set(Object.keys(previous.routes));
+		const candidates = new Set<string>();
+		for (const path of savedPaths) {
+			for (const page of paths) {
+				if (path.endsWith(page)) candidates.add(path.slice(0, -page.length) + '/');
+			}
 		}
-		if (candidates?.size === 1) return [...candidates][0];
+		const matches = [...candidates]
+			.map((prefix) => ({
+				prefix,
+				count: paths.filter((page) => savedPaths.has(prefix.slice(0, -1) + page)).length,
+			}))
+			.toSorted(
+				(left, right) => right.count - left.count || left.prefix.length - right.prefix.length,
+			);
+		const best = matches[0];
+		if (
+			best &&
+			matches.every(({ count, prefix }) => count < best.count || prefix.startsWith(best.prefix))
+		) {
+			return best.prefix;
+		}
 		throw new Error(
 			'Could not infer a deployment base from the existing CSP route map. Set --base explicitly.',
 		);
@@ -486,7 +497,7 @@ export class CliProcessor {
 		const previous =
 			remember && existsSync(statePath)
 				? (JSON.parse(await readFile(statePath, 'utf8')) as Partial<
-						Record<AdapterId, StaticHeaderArtifact>
+						Record<AdapterId, StructuredHeaderOwnership | StaticHeaderArtifact>
 					>)
 				: {};
 		const next = { ...previous };
@@ -524,9 +535,8 @@ export class CliProcessor {
 			}
 			const existing = onDisk || fromInput;
 			try {
-				writes.set(
-					dest,
-					mergeStaticHeaders(
+				if (id === 'vercel' || id === 'firebase') {
+					const result = mergeStructuredStaticHeaders(
 						id,
 						existing,
 						headers,
@@ -534,9 +544,12 @@ export class CliProcessor {
 							publicDir: relative(base, outputDir).split(sep).join('/') || '.',
 						},
 						previous[id],
-					),
-				);
-				if (id === 'vercel' || id === 'firebase') next[id] = headers;
+					);
+					writes.set(dest, result.body);
+					next[id] = result.ownership;
+				} else {
+					writes.set(dest, mergeStaticHeaders(id, existing, headers));
+				}
 			} catch (error) {
 				throw new Error(`Cannot generate ${id} headers in ${dest}: ${String(error)}`);
 			}

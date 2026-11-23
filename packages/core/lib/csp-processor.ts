@@ -441,8 +441,7 @@ export class CSPProcessor {
 		replaceGenerated = false,
 	): string[] {
 		const head = findOne((element) => element.name === 'head', document.children, true);
-		if (!head) return [];
-		return this.findExistingCSPMetaTags(head)
+		return this.findExistingCSPMetaTags(head?.children ?? this.implicitHeadElements(document))
 			.filter((meta) => {
 				const generator = meta.attribs['data-csp-plugins'];
 				return (
@@ -536,15 +535,15 @@ export class CSPProcessor {
 				}
 			} else if (ele.type === ElementType.Tag && ele.name === 'link') {
 				const element = ele;
-				const rel = element.attribs.rel;
+				const rel = element.attribs.rel?.toLowerCase().split(/\s+/) ?? [];
 				const href = element.attribs.href;
 				if (href) {
-					if (rel === 'stylesheet') {
+					if (rel.includes('stylesheet')) {
 						result.styleSources.push({
 							src: href,
 							element,
 						} as AnalysisNode<false>);
-					} else if (rel === 'preload' || rel === 'prefetch') {
+					} else if (rel.includes('preload') || rel.includes('prefetch')) {
 						const as = element.attribs.as;
 						if (as === 'font') {
 							result.fontSources.push({
@@ -599,7 +598,7 @@ export class CSPProcessor {
 
 		// If injectMetaTag is false, remove any existing CSP meta tags
 		if (!this.options.injectMetaTag) {
-			const existingCSPMetaTags = this.findExistingCSPMetaTags(head);
+			const existingCSPMetaTags = this.findExistingCSPMetaTags(head.children);
 			existingCSPMetaTags.forEach(removeElement);
 			return;
 		}
@@ -610,7 +609,7 @@ export class CSPProcessor {
 		// Create new CSP meta tag
 		const newMetaTag = this.createCSPMetaTag(cspValue);
 		// Find existing CSP meta tags
-		const existingCSPMetaTags = this.findExistingCSPMetaTags(head);
+		const existingCSPMetaTags = this.findExistingCSPMetaTags(head.children);
 
 		// Remove existing CSP meta tags if replaceExisting is true
 		if (this.options.metaTagOptions.replaceExisting && existingCSPMetaTags.length > 0) {
@@ -626,17 +625,62 @@ export class CSPProcessor {
 	 */
 	private createHead(document: Document): Element {
 		const head = new DomElement('head', {});
+		for (const element of this.implicitHeadElements(document)) appendChild(head, element);
 
-		// Insert head at the beginning of the document
-		prependChild(document, head);
+		const html = findOne((element) => element.name === 'html', document.children, false);
+		if (html) {
+			prependChild(html, head);
+		} else {
+			// A leading doctype controls standards mode and must remain first.
+			const doctype = document.children.find(
+				(child) =>
+					child.type === ElementType.Directive && child.name.toLowerCase() === '!doctype',
+			);
+			if (doctype) append(doctype, head);
+			else prependChild(document, head);
+		}
 		return head;
+	}
+
+	private implicitHeadElements(document: Document): Element[] {
+		const html = findOne((element) => element.name === 'html', document.children, false);
+		const headElements = new Set([
+			'base',
+			'link',
+			'meta',
+			'title',
+			'style',
+			'script',
+			'noscript',
+			'template',
+		]);
+		const elements: Element[] = [];
+		for (const child of html?.children ?? document.children) {
+			if (
+				child.type === ElementType.Comment ||
+				child.type === ElementType.Directive ||
+				(child.type === ElementType.Text && !child.data.trim())
+			)
+				continue;
+			if (
+				(child.type === ElementType.Tag ||
+					child.type === ElementType.Style ||
+					child.type === ElementType.Script) &&
+				headElements.has(child.name)
+			) {
+				elements.push(child);
+			} else {
+				break;
+			}
+		}
+		return elements;
 	}
 
 	/**
 	 * Find existing CSP meta tags
 	 */
-	private findExistingCSPMetaTags(head: Element): Element[] {
-		return head.children.filter((child): child is Element => {
+	private findExistingCSPMetaTags(children: ChildNode[]): Element[] {
+		return children.filter((child): child is Element => {
 			if (child.type === ElementType.Tag && child.name === 'meta') {
 				const meta = child;
 				const httpEquiv = meta.attribs['http-equiv'] || meta.attribs.httpEquiv;

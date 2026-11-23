@@ -63,17 +63,21 @@ function asNamedHeaders(value: unknown): NamedHeader[] {
 
 function mergeNamedHeaderList(
 	existing: NamedHeader[],
-	headers: CspDirectiveHeaders,
+	headers: Partial<CspDirectiveHeaders>,
+	preserveAbsent: boolean,
 ): NamedHeader[] {
-	const cspNames = new Set<string>(cspHeaderNames.map((name) => name.toLowerCase()));
+	const incoming = presentHeaders(headers);
+	const replaced = preserveAbsent ? incoming.map(([name]) => name) : cspHeaderNames;
+	const cspNames = new Set(replaced.map((name) => name.toLowerCase()));
 	const kept = existing.filter((header) => !cspNames.has(header.key.toLowerCase()));
-	return [...kept, ...presentHeaders(headers).map(([key, value]) => ({ key, value }))];
+	return [...kept, ...incoming.map(([key, value]) => ({ key, value }))];
 }
 
 export function mergePathGroups(
 	existing: unknown,
 	source: string,
-	headers: CspDirectiveHeaders,
+	headers: Partial<CspDirectiveHeaders>,
+	preserveAbsent = false,
 ): unknown[] {
 	if (existing !== undefined && !Array.isArray(existing)) {
 		throw new Error('Expected the existing headers configuration to be an array');
@@ -93,10 +97,13 @@ export function mergePathGroups(
 		const group = groups[index] as Record<string, unknown>;
 		groups[index] = {
 			...group,
-			headers: mergeNamedHeaderList(asNamedHeaders(group.headers), headers),
+			headers: mergeNamedHeaderList(asNamedHeaders(group.headers), headers, preserveAbsent),
 		};
 	} else {
-		groups.push({ source, headers: mergeNamedHeaderList([], headers) } satisfies PathHeaderGroup);
+		groups.push({
+			source,
+			headers: mergeNamedHeaderList([], headers, preserveAbsent),
+		} satisfies PathHeaderGroup);
 	}
 	return groups;
 }
@@ -209,22 +216,22 @@ export function mergeFirebase(
 	return prettyJson(base);
 }
 
-export function prepareStructuredConfig(
+export function writeStructuredConfig(
 	id: 'vercel' | 'firebase',
 	existing: string,
-	previousRules: ReadonlyMap<string, CspDirectiveHeaders>,
-	nextPaths: ReadonlySet<string>,
+	previousRules: ReadonlyMap<string, Partial<CspDirectiveHeaders>>,
+	nextRules: ReadonlyMap<string, CspDirectiveHeaders>,
 	routed: boolean,
 	options?: HeaderAdapterOptions,
-): string {
+): { body: string; rules: Record<string, Partial<CspDirectiveHeaders>> } {
 	const parsed: unknown = existing.trim() ? JSON.parse(existing) : {};
 	if (!isRecord(parsed)) throw new Error(`Expected an existing ${id} configuration object`);
+	const written = new Map<string, Partial<CspDirectiveHeaders>>();
 	const prepare = (record: Record<string, unknown>) => {
-		const groups = record.headers;
-		if (groups === undefined) return record;
+		const groups = record.headers ?? [];
 		if (!Array.isArray(groups))
 			throw new Error('Expected the existing headers configuration to be an array');
-		const kept = groups.flatMap((group: unknown): unknown[] => {
+		let kept = groups.flatMap((group: unknown): unknown[] => {
 			if (!isRecord(group) || !Array.isArray(group.headers)) return [group];
 			const managed =
 				typeof group.source === 'string' &&
@@ -255,7 +262,7 @@ export function prepareStructuredConfig(
 				(!routed ||
 					typeof group.source !== 'string' ||
 					!/^\/[\w.%/-]*$/.test(group.source) ||
-					nextPaths.has(group.source))
+					nextRules.has(group.source))
 			) {
 				throw new Error(
 					'An existing CSP rule overlaps generated routes. Remove or scope that rule before emitting a route policy.',
@@ -269,12 +276,44 @@ export function prepareStructuredConfig(
 				return [];
 			return [{ ...group, headers: entries }];
 		});
+		for (const [source, headers] of nextRules) {
+			const effective: Partial<CspDirectiveHeaders> = { ...headers };
+			const existing = kept.find(
+				(item) =>
+					isRecord(item) &&
+					item.source === source &&
+					item.has === undefined &&
+					item.missing === undefined,
+			);
+			if (isRecord(existing)) {
+				for (const name of ['Referrer-Policy', 'Report-To'] as const) {
+					const authored = asNamedHeaders(existing.headers).find(
+						(item) => item.key.toLowerCase() === name.toLowerCase(),
+					);
+					if (!authored) continue;
+					const requested = effective[name];
+					if (
+						requested &&
+						requested !== authored.value &&
+						!(name === 'Referrer-Policy' && requested === 'strict-origin-when-cross-origin')
+					) {
+						throw new Error(
+							`Existing ${name} for ${source} conflicts with the requested value`,
+						);
+					}
+					delete effective[name];
+				}
+			}
+			kept = mergePathGroups(kept, source, effective, true);
+			written.set(source, effective);
+		}
 		return { ...record, headers: kept };
 	};
-	if (id === 'vercel') return prettyJson(prepare(parsed));
+	if (id === 'vercel')
+		return { body: prettyJson(prepare(parsed)), rules: Object.fromEntries(written) };
 	const base = { ...parsed };
 	updateFirebaseSite(base, options, prepare);
-	return prettyJson(base);
+	return { body: prettyJson(base), rules: Object.fromEntries(written) };
 }
 
 export function mergeNetlify(

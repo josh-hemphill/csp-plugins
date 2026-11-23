@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import { CSPProcessor, generateHash } from '@csp-plugins/core';
@@ -12,6 +12,32 @@ import type { Plugin, ResolvedConfig } from 'vite';
 
 const DEFAULT_HEADERS_FILE = 'csp-headers.json';
 const HTML_EXT = /\.html?$/i;
+
+async function publicAssets(
+	root: string,
+	base: string,
+): Promise<Map<string, { name: string; path: string }>> {
+	const files = new Map<string, { name: string; path: string }>();
+	const ancestors = new Set<string>();
+	const scan = async (directory: string): Promise<void> => {
+		const target = await realpath(directory);
+		if (ancestors.has(target))
+			throw new Error(`Circular Vite public directory link at ${directory}`);
+		ancestors.add(target);
+		for (const entry of await readdir(directory, { withFileTypes: true })) {
+			const path = resolve(directory, entry.name);
+			const kind = entry.isSymbolicLink() ? await stat(path) : entry;
+			if (kind.isDirectory()) await scan(path);
+			else if (kind.isFile()) {
+				const name = relative(root, path).split(sep).join('/');
+				files.set(staticHtmlPath(name, base), { name, path });
+			}
+		}
+		ancestors.delete(target);
+	};
+	await scan(root);
+	return files;
+}
 
 export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 	const settings = new CommonAssetTracker('vite', options).getOptions();
@@ -50,20 +76,10 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 				const expected = new Map<string, string | Uint8Array>();
 				const base = config.base === './' || config.base === '' ? '/' : config.base;
 				const files = Object.values(bundle);
-				const publicFiles = new Map<string, { name: string; path: string }>();
-				if (config.build.copyPublicDir && config.publicDir && existsSync(config.publicDir)) {
-					const entries = await readdir(config.publicDir, {
-						recursive: true,
-						withFileTypes: true,
-					});
-					for (const entry of entries) {
-						const path = resolve(entry.parentPath, entry.name);
-						if (!entry.isFile() && !(entry.isSymbolicLink() && (await stat(path)).isFile()))
-							continue;
-						const name = relative(config.publicDir, path).split(sep).join('/');
-						publicFiles.set(staticHtmlPath(name, base), { name, path });
-					}
-				}
+				const publicFiles =
+					config.build.copyPublicDir && config.publicDir && existsSync(config.publicDir)
+						? await publicAssets(config.publicDir, base)
+						: new Map<string, { name: string; path: string }>();
 				const assets = new Map(
 					files.map((file) => [staticHtmlPath(file.fileName, base), file]),
 				);
@@ -126,6 +142,7 @@ export default function cspVitePlugin(options: CspPluginOptions = {}): Plugin {
 					} else {
 						this.emitFile({ type: 'asset', fileName, source });
 					}
+					expected.set(relative(outputPath, destination), source);
 				}
 
 				if (isWrite) verification.set(outputPath, expected);

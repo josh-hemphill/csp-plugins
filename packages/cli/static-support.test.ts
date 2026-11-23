@@ -257,3 +257,29 @@ it('retains the deployment base during Vite-to-CLI host emission', async () => {
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+it('reruns from the inferred root after deleting a nested index and preserves an implicit-head policy', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-route-removal-'));
+	const dist = join(root, 'dist');
+	await mkdir(join(dist, 'news'), { recursive: true });
+	const strict = "default-src 'none'; script-src 'none';";
+	const original = `<!doctype html>\n<title>Fixture</title><meta http-equiv="Content-Security-Policy" content="${strict}"><p>Hello</p>`;
+	const run = () =>
+		spawnSync(process.execPath, [cli, 'dist', '--emit', 'netlify'], {
+			cwd: root,
+			encoding: 'utf8',
+		});
+	try {
+		await writeFile(join(dist, 'index.html'), original);
+		await writeFile(join(dist, 'news', 'index.html'), page('news'));
+		expect(run().status).toBe(0);
+		await rm(join(dist, 'news'), { recursive: true });
+		expect(run().status).toBe(0);
+		expect(await readFile(join(dist, 'index.html'), 'utf8')).toBe(original);
+		const generated = await readFile(join(dist, '_headers'), 'utf8');
+		expect(generated).toContain(strict);
+		expect(generated).not.toContain('/news');
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

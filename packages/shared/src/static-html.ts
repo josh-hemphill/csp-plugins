@@ -86,21 +86,34 @@ export async function processStaticHtml(
 						};
 						if (!integrity) return digest(options.hashAlgorithm ?? 'sha256');
 						const pins: string[] = [];
+						let strongest = 0;
+						let hasValidStrongest = false;
 						for (const token of integrity.trim().split(/\s+/)) {
 							const pin = /^(sha256|sha384|sha512)-([A-Za-z0-9+/_-]+=*)(?:\?.*)?$/.exec(
 								token,
 							);
 							if (!pin) continue;
 							const [, algorithm, value] = pin;
+							const strength = Number(algorithm.slice(3));
 							const normalized = value
 								.replaceAll('-', '+')
 								.replaceAll('_', '/')
 								.replace(/=+$/, '');
 							const actual = await digest(algorithm as HashAlgorithm);
-							if (actual.replace(/=+$/, '') !== `${algorithm}-${normalized}`) {
-								throw new Error(`Authored integrity does not match ${path} in ${pagePath}`);
+							if (strength > strongest) {
+								strongest = strength;
+								hasValidStrongest = false;
 							}
-							pins.push(actual);
+							if (
+								strength === strongest &&
+								actual.replace(/=+$/, '') === `${algorithm}-${normalized}`
+							) {
+								hasValidStrongest = true;
+							}
+							pins.push(`${algorithm}-${value}`);
+						}
+						if (strongest > 0 && !hasValidStrongest) {
+							throw new Error(`Authored integrity does not match ${path} in ${pagePath}`);
 						}
 						return pins.length > 0 ? pins : undefined;
 					} catch (error) {
