@@ -58,4 +58,5 @@ The [contributors list](CONTRIBUTORS.md) is generated from the GitHub contributo
 
 <!-- CONTRIBUTORS:START -->
   - <img src="https://avatars.githubusercontent.com/u/46608115?v=4" width="24" height="24" alt=""> [josh-hemphill](https://github.com/josh-hemphill)
+  - <img src="https://avatars.githubusercontent.com/u/199161495?v=4" width="24" height="24" alt=""> [cursoragent](https://github.com/cursoragent)
 <!-- CONTRIBUTORS:END -->
