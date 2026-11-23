@@ -584,3 +584,20 @@ it('uses an authored base for Vercel aliases and verifies existing SRI without r
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+it('rejects stale authored local stylesheet integrity without touching the authored HTML', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-authored-style-'));
+	const input = join(root, 'dist');
+	await mkdir(input);
+	const html = `<!doctype html><head><meta http-equiv="Content-Security-Policy" content="style-src 'self'"><link rel="stylesheet" href="/app.css" integrity="${hash('old')}"></head>`;
+	try {
+		await writeFile(join(input, 'index.html'), html);
+		await writeFile(join(input, 'app.css'), 'new');
+		const result = spawnSync(process.execPath, [cli, 'dist'], { cwd: root, encoding: 'utf8' });
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain('Cannot verify integrity for /app.css');
+		expect(await readFile(join(input, 'index.html'), 'utf8')).toBe(html);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

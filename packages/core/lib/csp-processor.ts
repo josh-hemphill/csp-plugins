@@ -1071,7 +1071,7 @@ export class CSPProcessor {
 	/**
 	 * Check if a source should be hashed based on external hashing options
 	 */
-	private shouldHashExternalSource(
+	shouldHashExternalSource(
 		source: string,
 		type: 'script' | 'style' | 'image' | 'font' | 'other',
 	): boolean {

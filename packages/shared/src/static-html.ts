@@ -208,9 +208,17 @@ export async function processStaticHtml(
 			reference !== undefined &&
 			options.generateHeaders !== false &&
 			JSON.stringify(beforeRestrictions) !== JSON.stringify(restrictions);
-		const verifyPinnedScripts =
-			hashing?.localScriptIntegrity === true && hashing.scripts !== false;
-		if (aliases.length > 0 || changedPlacement || verifyPinnedScripts) {
+		const analysis = await processor.analyzeDOM(document);
+		const checks = [
+			...analysis.scriptSources.map((source) => ({ ...source, type: 'script' as const })),
+			...analysis.styleSources.map((source) => ({ ...source, type: 'style' as const })),
+		].flatMap(({ src, element, type }) => {
+			const integrity = 'attribs' in element ? element.attribs.integrity : undefined;
+			if ((type === 'style' && !integrity) || !processor.shouldHashExternalSource(src, type))
+				return [];
+			return [{ src, integrity, type }];
+		});
+		if (aliases.length > 0 || changedPlacement || checks.length > 0) {
 			const metaBase =
 				reference === undefined
 					? pageUrl
@@ -221,19 +229,15 @@ export async function processStaticHtml(
 				reference === undefined
 					? httpPages
 					: httpPages.map((page) => effectiveBase(page, reference, restrictions));
-			const analysis = await processor.analyzeDOM(document);
 			checkRoutes(analysis, metaBase, httpBases);
-			if (verifyPinnedScripts) {
-				assetBase = metaBase;
-				for (const { src, element } of analysis.scriptSources) {
-					const integrity = 'attribs' in element ? element.attribs.integrity : undefined;
-					const hashes = await hashAsset(src, 'script', integrity);
-					if (readFailure) throw readFailure;
-					if (hashes && !integrity) {
-						throw new Error(
-							`Cannot add integrity to ${src} in ${pagePath} while preserving its CSP and markup. Add the integrity attribute or explicitly replace the existing policy.`,
-						);
-					}
+			assetBase = metaBase;
+			for (const { src, type, integrity } of checks) {
+				const hashes = await hashAsset(src, type, integrity);
+				if (readFailure) throw readFailure;
+				if (hashes && !integrity) {
+					throw new Error(
+						`Cannot add integrity to ${src} in ${pagePath} while preserving its CSP and markup. Add the integrity attribute or explicitly replace the existing policy.`,
+					);
 				}
 			}
 		}
