@@ -21,8 +21,10 @@ import {
 	mergeStructuredStaticHeaders,
 	parseAdapterIds,
 	readStructuredRouting,
+	staticRouteAliases,
 	type AdapterId,
 	type StaticHeaderArtifact,
+	type StaticRoutingOptions,
 	type StructuredHeaderOwnership,
 } from '@csp-plugins/adapters';
 import { SimpleFilesystemCache } from '@csp-plugins/basic-fscache';
@@ -36,6 +38,27 @@ import type { CspDirectiveHeaders, CspDirectives } from '@csp-plugins/typed-dire
 import log from 'loglevel';
 
 const BASE_METADATA = '.csp-headers-base.json';
+
+function containsConfig(actual: unknown, original: unknown): boolean {
+	if (actual === original) return true;
+	if (Array.isArray(actual) && Array.isArray(original)) {
+		return original.every((item) => actual.some((current) => containsConfig(current, item)));
+	}
+	if (
+		actual &&
+		original &&
+		typeof actual === 'object' &&
+		typeof original === 'object' &&
+		!Array.isArray(actual) &&
+		!Array.isArray(original)
+	) {
+		const values = actual as Record<string, unknown>;
+		return Object.entries(original).every(
+			([key, value]) => Object.hasOwn(values, key) && containsConfig(values[key], value),
+		);
+	}
+	return false;
+}
 
 interface CliOptions {
 	/** Input directory containing built assets */
@@ -277,7 +300,8 @@ export class CliProcessor {
 		const root = await realpath(inputDir);
 		await this.collectFiles(inputDir, outputDir, files, root, new Set());
 		const base = await this.resolvePublicBase(files);
-		const directoryAliasesWithoutSlash = await this.usesDirectoryAliasesWithoutSlash();
+		const configurations = await this.readAdapterConfigurations(files);
+		const routing = this.getRoutingOptions(configurations);
 		if (inputDir !== outputDir) {
 			await this.checkPublishDirectory(outputDir, files);
 		}
@@ -290,13 +314,13 @@ export class CliProcessor {
 					base,
 					processHTML !== false,
 					collectHeaders,
-					directoryAliasesWithoutSlash,
+					routing,
 				);
 				if (html !== undefined) pages.set(dest, html);
 			}
 		}
 		const artifacts = collectHeaders
-			? await this.planHeaderOutputs(files, base)
+			? await this.planHeaderOutputs(files, base, configurations)
 			: new Map<string, string>();
 		for (const path of artifacts.keys()) {
 			if (
@@ -478,25 +502,62 @@ export class CliProcessor {
 		}
 	}
 
-	private async usesDirectoryAliasesWithoutSlash(): Promise<boolean> {
+	private async readAdapterConfigurations(
+		files: ReadonlyMap<string, string>,
+	): Promise<Map<AdapterId, { dest: string; body: string }>> {
 		const { emit = [], outputDir, projectDir = outputDir } = this.options;
+		const configurations = new Map<AdapterId, { dest: string; body: string }>();
 		for (const id of emit) {
-			if (id !== 'vercel' && id !== 'firebase') continue;
-			const path = join(projectDir, getAdapter(id).fileName);
-			if (!existsSync(path)) continue;
-			const config = await readFile(path, 'utf8');
+			if (id === 'json' || (id === 'netlify' && emit.includes('cloudflare-pages'))) continue;
+			const structured = id === 'vercel' || id === 'firebase';
+			const dest = join(structured ? projectDir : outputDir, getAdapter(id).fileName);
+			const source = files.get(dest);
+			const fromInput = source && source !== dest ? await readFile(source, 'utf8') : '';
+			const onDisk = existsSync(dest) ? await readFile(dest, 'utf8') : '';
+			if (fromInput.trim() && onDisk.trim()) {
+				let compatible: boolean;
+				try {
+					compatible = structured
+						? containsConfig(JSON.parse(onDisk), JSON.parse(fromInput))
+						: onDisk
+								.replace(/\r\n/g, '\n')
+								.trim()
+								.startsWith(fromInput.replace(/\r\n/g, '\n').trim());
+				} catch (error) {
+					throw new Error(`Cannot generate ${id} headers in ${dest}: ${String(error)}`);
+				}
+				if (!compatible) {
+					throw new Error(
+						`Both ${source} and ${dest} contain different configuration. Reconcile them before generating headers.`,
+					);
+				}
+			}
+			configurations.set(id, { dest, body: onDisk || fromInput });
+		}
+		return configurations;
+	}
+
+	private getRoutingOptions(
+		configurations: ReadonlyMap<AdapterId, { dest: string; body: string }>,
+	): StaticRoutingOptions[] {
+		const result: StaticRoutingOptions[] = [];
+		const { outputDir, projectDir = outputDir } = this.options;
+		for (const [id, { dest, body }] of configurations) {
+			if (id !== 'vercel' && id !== 'firebase') {
+				if (id === 'netlify' || id === 'cloudflare-pages') result.push({ cleanUrls: true });
+				continue;
+			}
 			try {
-				if (
-					readStructuredRouting(id, config, {
+				result.push(
+					readStructuredRouting(id, body, {
 						publicDir: relative(projectDir, outputDir).split(sep).join('/') || '.',
-					}).trailingSlash === false
-				)
-					return true;
+					}),
+				);
 			} catch (error) {
-				throw new Error(`Cannot generate ${id} headers in ${path}: ${String(error)}`);
+				throw new Error(`Cannot generate ${id} headers in ${dest}: ${String(error)}`);
 			}
 		}
-		return false;
+		return result;
 	}
 
 	private async processHTMLFile(
@@ -504,7 +565,7 @@ export class CliProcessor {
 		base: string,
 		writeHtml: boolean,
 		collectHeaders: boolean,
-		directoryAliasesWithoutSlash: boolean,
+		routing: StaticRoutingOptions[],
 	): Promise<string | undefined> {
 		const inputDir = this.options.inputDir;
 		const sourceRoot = await realpath(inputDir);
@@ -547,7 +608,7 @@ export class CliProcessor {
 			{
 				owner: 'cli',
 				rejectPreservedPolicy: Boolean(this.options.cspPolicyFile),
-				directoryAliasesWithoutSlash,
+				aliasPaths: routing.flatMap((host) => staticRouteAliases(path, host)),
 			},
 		);
 		if (collectHeaders && 'Content-Security-Policy' in result.headers)
@@ -558,6 +619,7 @@ export class CliProcessor {
 	private async planHeaderOutputs(
 		files: ReadonlyMap<string, string>,
 		base: string,
+		configurations: ReadonlyMap<AdapterId, { dest: string; body: string }>,
 	): Promise<Map<string, string>> {
 		const { emit = [], generateHeaders, headersOutput, outputDir, projectDir } = this.options;
 		const standard = staticHeaders(this.pageHeaders);
@@ -596,33 +658,14 @@ export class CliProcessor {
 			throw new Error(`Two generated outputs are configured for ${baseOutput}`);
 		writes.set(baseOutput, `${JSON.stringify({ base })}\n`);
 
-		for (const id of emit) {
-			if (id === 'json' || (id === 'netlify' && emit.includes('cloudflare-pages'))) continue;
-			const adapter = getAdapter(id);
-			const base = id === 'vercel' || id === 'firebase' ? (projectDir ?? outputDir) : outputDir;
-			const dest = join(base, adapter.fileName);
-			if (writes.has(dest)) {
-				throw new Error(`Two generated outputs are configured for ${dest}`);
-			}
-			const source = files.get(dest);
-			const fromInput = source && source !== dest ? await readFile(source, 'utf8') : '';
-			const onDisk = existsSync(dest) ? await readFile(dest, 'utf8') : '';
-			if (
-				fromInput.trim() &&
-				onDisk.trim() &&
-				!onDisk
-					.replace(/\r\n/g, '\n')
-					.trim()
-					.startsWith(fromInput.replace(/\r\n/g, '\n').trim())
-			) {
-				throw new Error(
-					`Both ${source} and ${dest} contain different configuration. Reconcile them before generating headers.`,
-				);
-			}
-			const existing = onDisk || fromInput;
+		for (const [id, { dest, body: existing }] of configurations) {
+			if (writes.has(dest)) throw new Error(`Two generated outputs are configured for ${dest}`);
 			try {
 				if (id === 'vercel' || id === 'firebase') {
-					const publicDir = relative(base, outputDir).split(sep).join('/') || '.';
+					const publicDir =
+						relative(projectDir ?? outputDir, outputDir)
+							.split(sep)
+							.join('/') || '.';
 					const key = id === 'firebase' ? `firebase:${publicDir}` : id;
 					const legacy = previous[id];
 					const owned = previous[key] ?? legacy;

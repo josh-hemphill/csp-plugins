@@ -118,11 +118,32 @@ export type StaticHeaderArtifact =
 	| CspDirectiveHeaders
 	| { routes: Record<string, CspDirectiveHeaders> };
 
+export interface StaticRoutingOptions {
+	cleanUrls: boolean;
+	trailingSlash?: boolean;
+	bothSlashes?: boolean;
+}
+
+/** Return URL aliases served for an emitted HTML page. */
+export function staticRouteAliases(path: string, routing: StaticRoutingOptions): string[] {
+	const alias = path.endsWith('/index.html')
+		? path.slice(0, -'index.html'.length)
+		: routing.cleanUrls && path.endsWith('.html')
+			? path.slice(0, -'.html'.length)
+			: undefined;
+	if (!alias || alias === '/') return alias ? [alias] : [];
+	const withoutSlash = alias.endsWith('/') ? alias.slice(0, -1) : alias;
+	const withSlash = withoutSlash + '/';
+	if (routing.bothSlashes) return [withoutSlash, withSlash];
+	if (routing.trailingSlash === false) return [...new Set([alias, withoutSlash])];
+	if (routing.trailingSlash === true) return [...new Set([alias, withSlash])];
+	return [alias];
+}
+
 function headerRules(
 	headers: StaticHeaderArtifact | undefined,
 	fallback: string,
-	cleanPaths: boolean,
-	trailingSlash?: boolean,
+	routing: StaticRoutingOptions,
 ): Map<string, CspDirectiveHeaders> {
 	if (!headers) return new Map();
 	if (!('routes' in headers)) return new Map([[fallback, headers]]);
@@ -130,17 +151,7 @@ function headerRules(
 	const rules = new Map(pages);
 	for (const [path, value] of pages) {
 		if (!/^\/[\w.%/-]*$/.test(path)) throw new Error(`Unsupported static header path: ${path}`);
-		const alias = path.endsWith('/index.html')
-			? path.slice(0, -'index.html'.length)
-			: cleanPaths && path.endsWith('.html')
-				? path.slice(0, -'.html'.length)
-				: undefined;
-		if (!alias) continue;
-		let canonical = alias;
-		if (trailingSlash === false && alias.length > 1 && alias.endsWith('/'))
-			canonical = alias.slice(0, -1);
-		if (trailingSlash === true && !alias.endsWith('/')) canonical = alias + '/';
-		for (const candidate of new Set([alias, canonical])) {
+		for (const candidate of staticRouteAliases(path, routing)) {
 			const existing = rules.get(candidate);
 			if (existing && JSON.stringify(existing) !== JSON.stringify(value)) {
 				throw new Error(
@@ -169,7 +180,7 @@ export function mergeStructuredStaticHeaders(
 ): { body: string; ownership: StructuredHeaderOwnership } {
 	const fallback = id === 'vercel' ? '/(.*)' : '**';
 	const routing = readStructuredRouting(id, existing, options);
-	const rules = headerRules(headers, fallback, routing.cleanUrls, routing.trailingSlash);
+	const rules = headerRules(headers, fallback, routing);
 	const prior =
 		previous && 'rules' in previous
 			? new Map(
@@ -181,7 +192,7 @@ export function mergeStructuredStaticHeaders(
 							: previous.rules,
 					),
 				)
-			: headerRules(previous, fallback, routing.cleanUrls, routing.trailingSlash);
+			: headerRules(previous, fallback, routing);
 	const output = writeStructuredConfig(id, existing, prior, rules, 'routes' in headers, options);
 	return {
 		body: output.body,
@@ -252,7 +263,7 @@ export function mergeStaticHeaders(
 	if (id === 'vercel' || id === 'firebase') {
 		return mergeStructuredStaticHeaders(id, existing, headers, options, previous).body;
 	}
-	const rules = headerRules(headers, '/*', true);
+	const rules = headerRules(headers, '/*', { cleanUrls: true });
 	if (id === 'netlify' || id === 'cloudflare-pages') {
 		const prefix = existing.split(/\r?\n/);
 		const begin = prefix.indexOf(routeStart);

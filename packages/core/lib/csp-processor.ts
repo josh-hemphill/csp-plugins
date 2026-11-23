@@ -399,6 +399,18 @@ export class CSPProcessor {
 		);
 	}
 
+	private createPolicyBuilder(): CspDirectives {
+		const { CSP, ReportTo, ReportOnly, ReferrerHeader } = this.options.baseDirectives;
+		return new CspDirectives({ ...CSP }, ReportTo, ReportOnly || undefined, ReferrerHeader);
+	}
+
+	/** Export an existing enforcing policy with the configured auxiliary headers. */
+	getPreservedHeaders(policy: string): CSPResult['headers'] {
+		return this.options.generateHeaders
+			? { ...this.createPolicyBuilder().getHeaders(), 'Content-Security-Policy': policy }
+			: {};
+	}
+
 	/**
 	 * Get cache statistics
 	 */
@@ -757,13 +769,7 @@ export class CSPProcessor {
 		};
 
 		// Build CSP directives based on analysis
-		const { CSP, ReportTo, ReportOnly, ReferrerHeader } = this.options.baseDirectives;
-		const cspBuilder = new CspDirectives(
-			{ ...CSP },
-			ReportTo,
-			ReportOnly || undefined,
-			ReferrerHeader,
-		);
+		const cspBuilder = this.createPolicyBuilder();
 
 		// Add script sources. Strict default is `'self'` plus hashes/nonces.
 		const scriptSrc: ActionSource[] = [];

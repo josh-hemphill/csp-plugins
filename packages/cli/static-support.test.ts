@@ -19,6 +19,7 @@ it('processes final static bytes and emits route policies beside the correct con
 	const out = join(root, 'publish');
 	const originalVercel = {
 		cleanUrls: false,
+		trailingSlash: true,
 		headers: [
 			{
 				source: '/private',
@@ -448,6 +449,87 @@ it('rejects origin-dependent bases and aliases without a trailing slash with uns
 
 		await writeFile(input, original.replaceAll('./app.', '/docs/app.'));
 		expect(run('--emit', 'vercel').status).toBe(0);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('preserves authored SRI without reinterpreting an authored base policy', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-authored-base-'));
+	await mkdir(join(root, 'dist', 'sub'), { recursive: true });
+	const input = join(root, 'dist', 'index.html');
+	const original = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="base-uri 'none'; style-src 'self'"><base href="/sub/"><link rel="stylesheet" href="style.css" integrity="${hash('root')}"></head></html>`;
+	try {
+		await writeFile(input, original);
+		await writeFile(join(root, 'dist', 'style.css'), 'root');
+		await writeFile(join(root, 'dist', 'sub', 'style.css'), 'other');
+		const result = spawnSync(process.execPath, [cli, 'dist'], { cwd: root, encoding: 'utf8' });
+		expect(result.status).toBe(0);
+		expect(await readFile(input, 'utf8')).toBe(original);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('validates aliases from a copied structured config on the first and subsequent runs', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-copied-config-'));
+	const input = join(root, 'dist');
+	await mkdir(join(input, 'docs'), { recursive: true });
+	await writeFile(join(input, 'index.html'), page('home'));
+	await writeFile(join(input, 'docs', 'post.html'), page('post'));
+	await writeFile(
+		join(input, 'vercel.json'),
+		JSON.stringify({ cleanUrls: true, trailingSlash: true, outputDirectory: '.' }),
+	);
+	const run = () =>
+		spawnSync(
+			process.execPath,
+			[cli, 'dist', '--output-dir', 'out', '--project-dir', 'out', '--emit', 'vercel'],
+			{
+				cwd: root,
+				encoding: 'utf8',
+			},
+		);
+	try {
+		const failed = run();
+		expect(failed.status).toBe(1);
+		expect(failed.stderr).toContain('resolves differently at /docs/post/');
+		await expect(readFile(join(root, 'out', 'vercel.json'))).rejects.toThrow(/ENOENT/);
+
+		await writeFile(
+			join(input, 'docs', 'post.html'),
+			page('post').replaceAll('./app.', '/docs/app.'),
+		);
+		expect(run().status).toBe(0);
+		expect(run().status).toBe(0);
+		const config = JSON.parse(await readFile(join(root, 'out', 'vercel.json'), 'utf8'));
+		expect(config.headers.map((rule: { source: string }) => rule.source)).toContain(
+			'/docs/post/',
+		);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+it('rejects a whitespace-prefixed network base when base-uri self depends on deployment origin', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'csp-cli-network-base-'));
+	const input = join(root, 'dist');
+	await mkdir(input);
+	const html = page('site').replace('<head>', '<head><base href="  //example.invalid/">');
+	await writeFile(join(input, 'index.html'), html);
+	await writeFile(join(root, 'policy.json'), JSON.stringify({ 'base-uri': ['self'] }));
+	try {
+		const result = spawnSync(
+			process.execPath,
+			[cli, 'dist', '--local-script-integrity', '--csp-policy-file', 'policy.json'],
+			{
+				cwd: root,
+				encoding: 'utf8',
+			},
+		);
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain('deployment origin');
+		expect(await readFile(join(input, 'index.html'), 'utf8')).toBe(html);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

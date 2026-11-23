@@ -34,13 +34,9 @@ export async function processStaticHtml(
 	pagePath: string,
 	options: CSPProcessorOptions,
 	readAsset: (path: string) => Promise<string | Uint8Array | undefined>,
-	context: {
-		owner: 'vite' | 'cli';
-		rejectPreservedPolicy?: boolean;
-		directoryAliasesWithoutSlash?: boolean;
-	},
-): Promise<CSPResult> {
-	const { owner, rejectPreservedPolicy, directoryAliasesWithoutSlash } = context;
+	context: { owner: 'vite' | 'cli'; rejectPreservedPolicy?: boolean; aliasPaths?: string[] },
+): Promise<Pick<CSPResult, 'headers' | 'html'>> {
+	const { owner, rejectPreservedPolicy, aliasPaths = [] } = context;
 	const hashing = options.externalSources?.hashing;
 	const pageUrl = new URL(pagePath, STATIC_ORIGIN);
 	let assetBase = pageUrl;
@@ -137,18 +133,30 @@ export async function processStaticHtml(
 		rejectPreservedPolicy && options.injectMetaTag !== false,
 	);
 	const preserve = authored.length > 0 && options.metaTagOptions?.replaceExisting !== true;
-	if (preserve && rejectPreservedPolicy) {
-		throw new Error(
-			`An existing CSP meta policy conflicts with configured policy options for ${pagePath}. Explicitly replace the existing policy or omit the additional policy.`,
-		);
+	const aliases = [...new Set(aliasPaths)].map((path) => new URL(path, STATIC_ORIGIN));
+	const checkRoutes = (analysis: CSPResult['analysis'], base: URL, alternateBases: URL[]) => {
+		for (const [index, alternate] of alternateBases.entries()) {
+			for (const { src } of [...analysis.scriptSources, ...analysis.styleSources]) {
+				if (new URL(src, base).href !== new URL(src, alternate).href) {
+					throw new Error(
+						`Relative asset ${src} resolves differently at ${aliases[index].pathname} and ${pagePath}. Use a root-relative URL or keep the original URL shape.`,
+					);
+				}
+			}
+		}
+	};
+	if (preserve) {
+		if (rejectPreservedPolicy) {
+			throw new Error(
+				`An existing CSP meta policy conflicts with configured policy options for ${pagePath}. Explicitly replace the existing policy or omit the additional policy.`,
+			);
+		}
+		if (aliases.length > 0) checkRoutes(await processor.analyzeDOM(document), pageUrl, aliases);
+		return { html, headers: processor.getPreservedHeaders(authored.join(', ')) };
 	}
+
 	const base = processor.getDocumentBase(document);
-	const directoryAlias =
-		directoryAliasesWithoutSlash && pagePath.endsWith('/index.html')
-			? pagePath.slice(0, -'/index.html'.length)
-			: '';
-	const alternatePage = directoryAlias ? new URL(directoryAlias, STATIC_ORIGIN) : undefined;
-	let alternateAssetBase = alternatePage;
+	let alternateBases = aliases;
 	if (base !== undefined) {
 		let candidate: URL | undefined;
 		try {
@@ -161,7 +169,6 @@ export async function processStaticHtml(
 			const position = options.metaTagOptions?.position;
 			if (
 				directive !== undefined &&
-				!preserve &&
 				options.injectMetaTag !== false &&
 				position !== undefined &&
 				position !== 'first'
@@ -173,14 +180,19 @@ export async function processStaticHtml(
 			const sources = (Array.isArray(directive) ? directive : [directive])
 				.filter((source): source is NonNullable<typeof source> => source !== undefined)
 				.map((source) => source.replace(/^'|'$/g, ''));
-			const relativeBase = !/^([a-z][a-z+.-]*:|\/\/)/i.test(base);
+			// A relative reference follows a change in document origin. Let the
+			// URL parser classify whitespace, controls and authority separators.
+			const alternateOrigin = new URL(pageUrl.pathname, 'http://base-check.invalid');
+			const relativeBase =
+				candidate.origin === pageUrl.origin &&
+				new URL(base, alternateOrigin).origin === alternateOrigin.origin;
 			const definitelyAllowed =
 				sources.length === 0 ||
 				sources.includes('*') ||
 				(relativeBase && sources.includes('self'));
 			if (definitelyAllowed) {
 				assetBase = candidate;
-				if (alternatePage) alternateAssetBase = new URL(base, alternatePage);
+				alternateBases = aliases.map((alias) => new URL(base, alias));
 			} else if (sources.some((source) => source !== 'none')) {
 				throw new Error(
 					`Cannot resolve the HTML base URL for ${pagePath} without knowing the deployment origin. Use a relative base with base-uri 'self', remove the base element, or use base-uri 'none'.`,
@@ -190,20 +202,6 @@ export async function processStaticHtml(
 	}
 	const result = await processor.processDOM(document);
 	if (readFailure) throw readFailure;
-	if (alternateAssetBase) {
-		for (const { src } of [...result.analysis.scriptSources, ...result.analysis.styleSources]) {
-			if (new URL(src, assetBase).href !== new URL(src, alternateAssetBase).href) {
-				throw new Error(
-					`Relative asset ${src} resolves differently at ${directoryAlias} and ${pagePath}. Use a root-relative URL or keep the trailing slash.`,
-				);
-			}
-		}
-	}
-	if (preserve) {
-		result.html = html;
-		if ('Content-Security-Policy' in result.headers) {
-			result.headers['Content-Security-Policy'] = authored.join(', ');
-		}
-	}
+	checkRoutes(result.analysis, assetBase, alternateBases);
 	return result;
 }

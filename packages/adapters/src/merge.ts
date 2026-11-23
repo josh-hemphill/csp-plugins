@@ -135,7 +135,7 @@ export function readStructuredRouting(
 	id: 'vercel' | 'firebase',
 	existing: string,
 	options?: HeaderAdapterOptions,
-): { cleanUrls: boolean; trailingSlash?: boolean } {
+): { cleanUrls: boolean; trailingSlash?: boolean; bothSlashes?: boolean } {
 	const parsed: unknown = existing.trim() ? JSON.parse(existing) : {};
 	if (!isRecord(parsed)) throw new Error(`Expected an existing ${id} configuration object`);
 	let site: Record<string, unknown> = parsed;
@@ -156,6 +156,7 @@ export function readStructuredRouting(
 	return {
 		cleanUrls: site.cleanUrls === true,
 		trailingSlash: typeof site.trailingSlash === 'boolean' ? site.trailingSlash : undefined,
+		bothSlashes: id === 'vercel' && site.trailingSlash === undefined,
 	};
 }
 

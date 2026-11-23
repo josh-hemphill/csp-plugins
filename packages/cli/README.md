@@ -40,9 +40,9 @@ integrity should be specified explicitly in your markup. For HTML using a
 `<base>` element, the CLI resolves a relative base under `base-uri 'self'`
 and ignores it under `base-uri 'none'`. It reports a conflict if the
 effective base would depend on a deployment origin it cannot know. A generated
-CSP meta tag must precede the base element when it sets `base-uri`. For
-directory URLs without a trailing slash, use root-relative script and stylesheet paths so
-the same HTML works at the file URL and its shorter alias.
+CSP meta tag must precede the base element when it sets `base-uri`. When a host
+adds or removes a trailing slash, use root-relative script and stylesheet paths
+so the same HTML works at each published URL.
 
 ## Hosting
 

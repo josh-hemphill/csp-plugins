@@ -383,3 +383,12 @@ it('removes old Vercel aliases after routing settings change and preserves autho
 		other.headers.filter((header: { key: string }) => header.key === 'Referrer-Policy'),
 	).toHaveLength(1);
 });
+
+it('covers both default Vercel directory URLs', () => {
+	const merged = JSON.parse(
+		mergeStaticHeaders('vercel', '{}', { routes: { '/docs/index.html': fixture } }),
+	);
+	expect(merged.headers.map((rule: { source: string }) => rule.source)).toEqual(
+		expect.arrayContaining(['/docs', '/docs/']),
+	);
+});
